@@ -196,11 +196,6 @@ class VoiceChatPresenter(
                 if (isStoppingGeneration) return
                 
                 // If this is a new generation task, ensure we are ready
-                // Note: We don't check ID here because HandleAsrResult *sets* the new generation context?
-                // Actually, we trust that if this task arrived, it's valid.
-                // But we should sync the ID if needed.
-                // For simplicity, we assume HandleAsrResult always starts a fresh context.
-                
                 isProcessingLlm = true
                 isSpeaking = true
                 isThinking = false
@@ -212,8 +207,6 @@ class VoiceChatPresenter(
                     view.addTranscript(Transcript(isUser = true, text = task.text))
                     view.updateStatus(VoiceChatState.PROCESSING)
                 }
-                // Don't stop record here to allow interruption
-                // stopRecord() 
                 llmGenerate(task.text)
             }
             is SerialTask.OnTtsComplete -> {
@@ -324,37 +317,31 @@ class VoiceChatPresenter(
                 }
 
                 if (isStopped) return@launch
+                
+                // NEW: Handle immediate speech detection for interruption
+                asrService?.onSpeechDetected = {
+                    lifecycleScope.launch {
+                        if (!isStopped && (isSpeaking || isProcessingLlm)) {
+                             Log.i(TAG, "Speech detected (interruption triggered)")
+                             interruptCurrentSession()
+                        }
+                    }
+                }
 
                 asrService?.onRecognizeText = { text ->
                     lifecycleScope.launch {
                         if (!isStopped && text.isNotEmpty()) {
+                            // If we happen to be speaking/processing, we should have already interrupted via onSpeechDetected.
+                            // But safeguard here just in case.
                             if (isSpeaking || isProcessingLlm) {
-                                // Interruption logic
-                                Log.i(TAG, "Interruption triggered by: $text")
-                                isInterrupted = true
-                                currentGenerationId++ // Invalidate old tasks
-                                
-                                // Stop current generation and playback
-                                chatPresenter.stopGenerate()
-                                audioPlayer?.stop()
-                                
-                                // Reset buffers
-                                responseBuilder.clear()
-                                ttsSegmentBuffer.clear()
-                                isFirstChunk = true
-                                
-                                // Note: We don't need to stop record here, we want to keep listening
+                                interruptCurrentSession()
                             }
                             
                             Log.i(TAG, "ASR Result: $text")
                             // Pass the *new* generation ID
                             taskChannel.send(SerialTask.HandleAsrResult(text, currentGenerationId))
                         } else {
-                            if (text.isEmpty()) {
-                                Log.d(TAG, "ASR ignored empty text")
-                            } else {
-                                Log.d(TAG, "ASR text received (system stopped): $text")
-                            }
+                             Log.d(TAG, "ASR ignored empty text")
                         }
                     }
                 }
@@ -375,6 +362,23 @@ class VoiceChatPresenter(
                 Log.e(TAG, "ASR initialization or start failed", e)
                 if (!isStopped) withContext(Dispatchers.Main) { view.showError("ASR init failed: ${e.message}") }
             }
+        }
+    }
+    
+    private fun interruptCurrentSession() {
+        if (!isInterrupted) {
+            Log.i(TAG, "Interrupting current session")
+            isInterrupted = true
+            currentGenerationId++ // Invalidate old tasks
+            
+            // Stop current generation and playback
+            chatPresenter.stopGenerate()
+            audioPlayer?.reset() // Use reset() to stop current playback and prepare for new audio
+            
+            // Reset buffers
+            responseBuilder.clear()
+            ttsSegmentBuffer.clear()
+            isFirstChunk = true
         }
     }
 
@@ -423,10 +427,9 @@ class VoiceChatPresenter(
                 // Get the greeting message from resources
                 val greetingMessage = activity.getString(com.alibaba.mnnllm.android.R.string.voice_chat_ready_greeting)
                 
-                // Temporarily stop recording while speaking greeting (optional, but good for clean start)
-                // Actually, let's keep it consistent: don't stop record?
-                // But specifically for greeting, we might want to ensure no noise.
-                // EXISTING Logic: stopRecord()
+                // Temporarily stop recording while speaking greeting if desired, 
+                // but interruption support suggests keeping it on? 
+                // For greeting, let's keep it safe.
                 stopRecord()
                 
                 // Set status to greeting
@@ -564,8 +567,7 @@ class VoiceChatPresenter(
         if (isProcessingLlm || isSpeaking) {
             isStoppingGeneration = true
             isGenerationFinished = false
-            isInterrupted = true
-            currentGenerationId++ // Invalidate
+            interruptCurrentSession()
             
             // Stop generation in ChatPresenter
             chatPresenter.stopGenerate()
