@@ -13,7 +13,8 @@ import com.alibaba.mnnllm.android.utils.UiUtils.getThemeColor
 
 data class Transcript(
     val isUser: Boolean,
-    val text: String
+    val text: String,
+    val isLoading: Boolean = false
 )
 
 class VoiceTranscriptAdapter(private val transcripts: MutableList<Transcript>) :
@@ -21,6 +22,7 @@ class VoiceTranscriptAdapter(private val transcripts: MutableList<Transcript>) :
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val messageTextView: TextView = view.findViewById(R.id.tv_message)
+        val loadingIndicator: View = view.findViewById(R.id.loading_indicator)
 
         fun bind(transcript: Transcript) {
             messageTextView.text = transcript.text
@@ -30,10 +32,14 @@ class VoiceTranscriptAdapter(private val transcripts: MutableList<Transcript>) :
                 itemView.context.getThemeColor(com.google.android.material.R.attr.colorOnSurface)
             }
             messageTextView.setTextColor(color)
+            
+            // Show loading only for AI messages that are marked as loading
+            loadingIndicator.visibility = if (!transcript.isUser && transcript.isLoading) View.VISIBLE else View.GONE
         }
 
         fun updateText(transcript: Transcript) {
             messageTextView.text = transcript.text.trim()
+            loadingIndicator.visibility = if (!transcript.isUser && transcript.isLoading) View.VISIBLE else View.GONE
         }
     }
 
@@ -71,9 +77,18 @@ class VoiceTranscriptAdapter(private val transcripts: MutableList<Transcript>) :
         if (transcripts.isNotEmpty()) {
             val lastIndex = transcripts.size - 1
             val oldTranscript = transcripts[lastIndex]
+            // Keep loading state as true during updates
             transcripts[lastIndex] = oldTranscript.copy(text = newText)
-            // Use payload to indicate this is just a text update
             notifyItemChanged(lastIndex, Unit)
         }
     }
-} 
+    
+    fun updateLastTranscriptLoading(isLoading: Boolean) {
+        if (transcripts.isNotEmpty()) {
+            val lastIndex = transcripts.size - 1
+            val oldTranscript = transcripts[lastIndex]
+            transcripts[lastIndex] = oldTranscript.copy(isLoading = isLoading)
+            notifyItemChanged(lastIndex, Unit)
+        }
+    }
+}

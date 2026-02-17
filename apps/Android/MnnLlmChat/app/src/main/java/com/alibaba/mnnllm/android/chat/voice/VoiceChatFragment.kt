@@ -231,6 +231,12 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
         binding.rvVoiceTranscript.scrollToPosition(transcriptAdapter.itemCount - 1)
     }
 
+    override fun updateLastTranscriptLoading(isLoading: Boolean) {
+        if (_binding == null) return
+        
+        transcriptAdapter.updateLastTranscriptLoading(isLoading)
+    }
+
     override fun showError(message: String) {
         if (context == null) return // Guard against null context
         

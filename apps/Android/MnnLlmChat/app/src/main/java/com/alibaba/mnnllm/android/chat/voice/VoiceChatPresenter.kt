@@ -115,7 +115,7 @@ class VoiceChatPresenter(
                     // Initialize processor for new generation
                     generateResultProcessor = GenerateResultProcessor()
                     generateResultProcessor?.generateBegin()
-                    withContext(Dispatchers.Main) { view.addTranscript(Transcript(isUser = false, text = "")) }
+                    // Transcript already added in HandleAsrResult
                 }
                 
                 // Process the progress through GenerateResultProcessor
@@ -166,6 +166,7 @@ class VoiceChatPresenter(
                 
                 Log.d(TAG, "progress is ${task.progress} end")
             }
+
             is SerialTask.ProcessFinalChunk -> {
                 if (isStoppingGeneration) return
                 Log.d(TAG, "progress is null")
@@ -176,6 +177,11 @@ class VoiceChatPresenter(
                 // Reset thinking state
                 isThinking = false
                 
+                // Hide loading indicator when finished
+                withContext(Dispatchers.Main) {
+                    view.updateLastTranscriptLoading(false)
+                }
+
                 if (task.ttsSegmentBuffer.isNotEmpty()) {
                     val textToSpeak = task.ttsSegmentBuffer.toString()
                     task.ttsSegmentBuffer.clear()
@@ -192,6 +198,9 @@ class VoiceChatPresenter(
                 }
                 Log.d(TAG, "progress is null end")
             }
+
+
+
             is SerialTask.HandleAsrResult -> {
                 if (isStoppingGeneration) return
                 
@@ -205,6 +214,8 @@ class VoiceChatPresenter(
                 currentStatus = VoiceChatPresenterState.GENERATING_TEXT
                 withContext(Dispatchers.Main) {
                     view.addTranscript(Transcript(isUser = true, text = task.text))
+                    // Add AI placeholder immediately with loading state
+                    view.addTranscript(Transcript(isUser = false, text = "", isLoading = true))
                     view.updateStatus(VoiceChatState.PROCESSING)
                 }
                 llmGenerate(task.text)
@@ -383,6 +394,8 @@ class VoiceChatPresenter(
             // Update UI status to Listening
             lifecycleScope.launch(Dispatchers.Main) {
                 view.updateStatus(VoiceChatState.LISTENING)
+                // Ensure loading indicator is hidden if we interrupt
+                view.updateLastTranscriptLoading(false)
             }
         }
     }
@@ -699,6 +712,7 @@ interface VoiceChatView {
     fun updateStatus(state: VoiceChatState)
     fun addTranscript(transcript: Transcript)
     fun updateLastTranscript(text: String)
+    fun updateLastTranscriptLoading(isLoading: Boolean)
     fun showError(message: String)
     fun stopGeneration()
     fun showGreetingMessage()
