@@ -154,14 +154,13 @@ class VoiceChatPresenter(
                     if (delimiters.containsMatchIn(progressText) && !isThinking) {
                         val textToSpeak = task.ttsSegmentBuffer.toString()
                         task.ttsSegmentBuffer.clear()
-                        Log.d(TAG, "Delimiter found. Speaking: '$textToSpeak'")
+                        Log.d(TAG, "Delimiter found. Queueing TTS: '$textToSpeak'")
                         if (!isStopped && !isStoppingGeneration) {
                             currentStatus = VoiceChatPresenterState.PLAYING
                             withContext(Dispatchers.Main) { view.updateStatus(VoiceChatState.SPEAKING) }
-                            val audioData = ttsService?.process(textToSpeak, 0)
-                            if (audioData != null && audioData.isNotEmpty() && !isStopped && !isStoppingGeneration) {
-                                audioPlayer?.playChunk(audioData)
-                            }
+                            
+                            // Send to TTS worker
+                            ttsWorkChannel.trySend(TtsWorkItem(textToSpeak, task.generationId))
                         }
                     }
                 }
@@ -187,16 +186,20 @@ class VoiceChatPresenter(
                 if (task.ttsSegmentBuffer.isNotEmpty()) {
                     val textToSpeak = task.ttsSegmentBuffer.toString()
                     task.ttsSegmentBuffer.clear()
-                    Log.d(TAG, "Speaking remaining buffer: '$textToSpeak'")
+                    Log.d(TAG, "Queueing remaining buffer: '$textToSpeak'")
                     currentStatus = VoiceChatPresenterState.PLAYING
                     withContext(Dispatchers.Main) { view.updateStatus(VoiceChatState.SPEAKING) }
-                    val audioData = withContext(Dispatchers.IO) { ttsService?.process(textToSpeak, 0) }
-                    if (audioData != null && audioData.isNotEmpty() && !isStopped && !isStoppingGeneration) {
-                        audioPlayer?.playChunk(audioData)
-                    }
+                    
+                    // Send final text to TTS worker
+                    ttsWorkChannel.trySend(TtsWorkItem(textToSpeak, task.generationId))
                 }
+                
                 if (!isStoppingGeneration) {
-                    audioPlayer?.endChunk()
+                    // Send End of Generation signal
+                    // We send an empty item with isFinal=true to indicate avoiding endChunk until audio finishes
+                    // Actually, we need to flow this through the pipeline so endChunk happens after audio plays
+                    // So we send a special TtsWorkItem that results in an isFinal AudioWorkItem
+                    ttsWorkChannel.trySend(TtsWorkItem("", task.generationId, isFinal = true))
                 }
                 Log.d(TAG, "progress is null end")
             }
@@ -260,6 +263,61 @@ class VoiceChatPresenter(
         }
     }
 
+    // Pipeline Channels
+    private val ttsWorkChannel = Channel<TtsWorkItem>(Channel.UNLIMITED)
+    private val audioWorkChannel = Channel<AudioWorkItem>(Channel.UNLIMITED)
+    
+    private fun initWorkers() {
+        // TTS Worker
+        lifecycleScope.launch(Dispatchers.IO) {
+            for (item in ttsWorkChannel) {
+                if (isStopped) break
+                // Generation check: discard items from previous generations
+                if (item.generationId != currentGenerationId) {
+                    Log.d(TAG, "TTS Worker: Discarding old item gen=${item.generationId}, current=$currentGenerationId")
+                    continue
+                }
+                
+                if (item.text.isNotEmpty()) {
+                    Log.d(TAG, "TTS Worker: Processing '${item.text}'")
+                    val audioData = ttsService?.process(item.text, 0)
+                    if (audioData != null && audioData.isNotEmpty()) {
+                        audioWorkChannel.send(AudioWorkItem(audioData, item.generationId))
+                    } else {
+                        Log.w(TAG, "TTS Worker: Failed to generate audio for '${item.text}'")
+                    }
+                }
+                
+                if (item.isFinal) {
+                    Log.d(TAG, "TTS Worker: Sending Final marker")
+                    audioWorkChannel.send(AudioWorkItem(null, item.generationId, isFinal = true))
+                }
+            }
+        }
+        
+        // Audio Worker
+        lifecycleScope.launch(Dispatchers.IO) { // Using IO as playChunk might block slightly or use its own pool
+            for (item in audioWorkChannel) {
+                if (isStopped) break
+                // Generation check
+                if (item.generationId != currentGenerationId) {
+                    Log.d(TAG, "Audio Worker: Discarding old item gen=${item.generationId}, current=$currentGenerationId")
+                    continue
+                }
+                
+                if (item.audioData != null) {
+                    Log.d(TAG, "Audio Worker: Playing chunk (${item.audioData.size} bytes)")
+                    audioPlayer?.playChunk(item.audioData)
+                }
+                
+                if (item.isFinal) {
+                    Log.d(TAG, "Audio Worker: Calling endChunk")
+                    audioPlayer?.endChunk()
+                }
+            }
+        }
+    }
+
     fun start() {
         Log.d(TAG, "Presenter starting...")
         isStopped = false
@@ -273,6 +331,7 @@ class VoiceChatPresenter(
         view.updateAutoMicButtonState(isAutoMicEnabled)
         view.updateMuteButtonState(isMuted)
         
+        initWorkers() // Start pipeline workers
         initTts()
         startAsr()
     }
@@ -397,12 +456,14 @@ class VoiceChatPresenter(
         if (!isInterrupted) {
             Log.i(TAG, "Interrupting current session")
             isInterrupted = true
-            currentGenerationId++ // Invalidate old tasks
+            currentGenerationId++ // Invalidate old tasks in Pipeline
             
             // Stop current generation and playback
             chatPresenter.stopGenerate()
             audioPlayer?.reset() // Use reset() to stop current playback and prepare for new audio
             
+            // Channel items with old generationId will be discarded by workers
+
             // Reset buffers
             responseBuilder.clear()
             ttsSegmentBuffer.clear()
@@ -586,7 +647,9 @@ class VoiceChatPresenter(
         // Cleanup serial processor
         try {
             taskChannel.close()
-            Log.d(TAG, "Serial processor closed.")
+            ttsWorkChannel.close()
+            audioWorkChannel.close()
+            Log.d(TAG, "Serial processor and work channels closed.")
         } catch (e: Exception) {
             Log.e(TAG, "Error closing serial processor", e)
         }
@@ -642,6 +705,7 @@ class VoiceChatPresenter(
         }
     }
     
+    // ... existing mute implementation ...
     private var isAutoMicEnabled = false
 
     fun toggleMute() {
@@ -757,6 +821,22 @@ class VoiceChatPresenter(
             }
         }
     }
+    
+    // Work Items for Pipeline
+    private data class TtsWorkItem(
+        val text: String, 
+        val generationId: Long, 
+        val isFinal: Boolean = false
+    )
+
+    private data class AudioWorkItem(
+        val audioData: ShortArray?, 
+        val generationId: Long, 
+        val isFinal: Boolean = false
+    )
+
+
+
 }
 
 interface VoiceChatView {
