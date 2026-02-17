@@ -616,4 +616,6 @@
     <string name="qnn_libs_download_failed">Failed to download QNN libraries</string>
     <string name="qnn_libs_load_failed">Failed to load QNN libraries</string>
     <string name="qnn_device_not_supported">QNN model detected but device does not support QNN acceleration. Please use a different model.</string>
+    <string name="mic_on">Microphone On</string>
+    <string name="mic_off">Microphone Off</string>
 </resources>

@@ -127,6 +127,15 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
         binding.tvVoiceChatStatus.setOnClickListener {
             presenter?.stopGeneration()
         }
+        
+        binding.buttonMicToggle.setOnClickListener {
+            // Toggle local state and notify presenter
+            // For now, we don't have a local state variable for mic, so we can just ask presenter or toggle based on current icon?
+            // Better to add a boolean generic toggle, but presenter holds the truth.
+            // Let's assume we start enabled.
+            val isEnabled = binding.buttonMicToggle.tag as? Boolean ?: true
+            presenter?.setMicEnabled(!isEnabled)
+        }
     }
     
     private fun setupRecyclerView() {
@@ -308,5 +317,16 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
         binding.rvVoiceTranscript.scrollToPosition(transcriptAdapter.itemCount - 1)
         
         Log.d(TAG, "Greeting message shown: $greetingMessage")
+    }
+
+    override fun updateMicStatus(isEnabled: Boolean) {
+        if (_binding == null) return
+        
+        Log.d(TAG, "Updating mic status UI: $isEnabled")
+        binding.buttonMicToggle.apply {
+            setImageResource(if (isEnabled) R.drawable.ic_mic_on else R.drawable.ic_mic_off)
+            tag = isEnabled // Store state in tag
+            contentDescription = getString(if (isEnabled) R.string.mic_on else R.string.mic_off)
+        }
     }
 } 

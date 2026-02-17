@@ -69,6 +69,7 @@ class VoiceChatPresenter(
     private var isStopped = false
     private var isStoppingGeneration = false
     private var isGenerationFinished = false
+    private var isMicEnabled = true // Default to enabled
     
     // Interruption support
     private var currentGenerationId = 0L
@@ -256,6 +257,8 @@ class VoiceChatPresenter(
         // Register this presenter as an additional listener to ChatPresenter
         chatPresenter.addGenerateListener(this)
         
+        view.updateMicStatus(isMicEnabled)
+        
         initTts()
         startAsr()
     }
@@ -400,10 +403,10 @@ class VoiceChatPresenter(
         }
     }
 
-    private fun llmGenerate(text: String) {
-        lifecycleScope.launch(Dispatchers.IO) {
+    private suspend fun llmGenerate(text: String) {
+        withContext(Dispatchers.IO) {
             Log.d(TAG, "Starting LLM generation... isStopped: $isStopped")
-            if (isStopped) return@launch
+            if (isStopped) return@withContext
 
             // Reset generation state
             responseBuilder.clear()
@@ -412,6 +415,7 @@ class VoiceChatPresenter(
             isGenerationFinished = false
 
             // Send message through ChatPresenter for proper session management
+            // This will block until generation is complete or stopped
             chatPresenter.sendMessage(text)
         }
     }
@@ -426,10 +430,30 @@ class VoiceChatPresenter(
 
     private fun startRecord() {
         // Allow recording even if speaking or processing to support interruption
-        if (!isRecording) {
+        // But respect the manual toggle
+        if (!isRecording && isMicEnabled) {
             asrService?.startRecord()
             isRecording = true
             Log.d(TAG, "Recording started")
+        }
+    }
+
+    fun setMicEnabled(enabled: Boolean) {
+        if (isMicEnabled == enabled) return
+        
+        isMicEnabled = enabled
+        Log.d(TAG, "Microphone enabled: $isMicEnabled")
+        
+        if (isMicEnabled) {
+            // If enabled, try to start recording if appropriate
+            if (!isStopped && !isStoppingGeneration) {
+                 startRecord()
+                 view.updateMicStatus(true)
+            }
+        } else {
+            // If disabled, stop recording immediately
+            stopRecord()
+            view.updateMicStatus(false)
         }
     }
 
@@ -716,4 +740,5 @@ interface VoiceChatView {
     fun showError(message: String)
     fun stopGeneration()
     fun showGreetingMessage()
+    fun updateMicStatus(isEnabled: Boolean)
 }
