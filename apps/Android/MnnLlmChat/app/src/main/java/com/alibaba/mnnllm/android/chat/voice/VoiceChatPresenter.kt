@@ -29,10 +29,12 @@ enum class VoiceChatPresenterState {
 
 // Sealed class for sequential tasks
 sealed class SerialTask {
-    data class ProcessProgress(val progress: String, val isFirstChunk: Boolean, val responseBuilder: StringBuilder, val ttsSegmentBuffer: StringBuilder) : SerialTask()
-    data class ProcessFinalChunk(val ttsSegmentBuffer: StringBuilder) : SerialTask()
-    data class HandleAsrResult(val text: String) : SerialTask()
-    object OnTtsComplete : SerialTask()
+    abstract val generationId: Long
+
+    data class ProcessProgress(val progress: String, val isFirstChunk: Boolean, val responseBuilder: StringBuilder, val ttsSegmentBuffer: StringBuilder, override val generationId: Long) : SerialTask()
+    data class ProcessFinalChunk(val ttsSegmentBuffer: StringBuilder, override val generationId: Long) : SerialTask()
+    data class HandleAsrResult(val text: String, override val generationId: Long) : SerialTask()
+    data class OnTtsComplete(override val generationId: Long) : SerialTask()
 }
 
 enum class VoiceChatState {
@@ -68,6 +70,10 @@ class VoiceChatPresenter(
     private var isStoppingGeneration = false
     private var isGenerationFinished = false
     
+    // Interruption support
+    private var currentGenerationId = 0L
+    @Volatile private var isInterrupted = false
+
     // For handling LLM generation progress with thinking support
     private var generateResultProcessor: GenerateResultProcessor? = null
     private var responseBuilder = StringBuilder()
@@ -94,6 +100,12 @@ class VoiceChatPresenter(
     }
 
     private suspend fun processTask(task: SerialTask) {
+        // Check if task belongs to current generation (except HandleAsrResult which starts a new one)
+        if (task !is SerialTask.HandleAsrResult && task.generationId != currentGenerationId) {
+            Log.d(TAG, "Ignoring task from old generation: ${task.generationId}, current: $currentGenerationId")
+            return
+        }
+
         when (task) {
             is SerialTask.ProcessProgress -> {
                 if (isStoppingGeneration) return
@@ -182,18 +194,35 @@ class VoiceChatPresenter(
             }
             is SerialTask.HandleAsrResult -> {
                 if (isStoppingGeneration) return
+                
+                // If this is a new generation task, ensure we are ready
+                // Note: We don't check ID here because HandleAsrResult *sets* the new generation context?
+                // Actually, we trust that if this task arrived, it's valid.
+                // But we should sync the ID if needed.
+                // For simplicity, we assume HandleAsrResult always starts a fresh context.
+                
                 isProcessingLlm = true
                 isSpeaking = true
                 isThinking = false
+                // Reset interruption flag as we are starting processing
+                isInterrupted = false
+                
                 currentStatus = VoiceChatPresenterState.GENERATING_TEXT
                 withContext(Dispatchers.Main) {
                     view.addTranscript(Transcript(isUser = true, text = task.text))
                     view.updateStatus(VoiceChatState.PROCESSING)
                 }
-                stopRecord()
+                // Don't stop record here to allow interruption
+                // stopRecord() 
                 llmGenerate(task.text)
             }
             is SerialTask.OnTtsComplete -> {
+                // Check if this completion event belongs to current generation
+                if (isInterrupted) {
+                    Log.d(TAG, "TTS completion ignored due to interruption")
+                    return
+                }
+
                 // Always handle TTS completion to ensure proper state transition
                 Log.d(TAG, "TTS playback completed, transitioning to LISTENING state")
                 isProcessingLlm = false
@@ -206,6 +235,7 @@ class VoiceChatPresenter(
                 audioPlayer?.reset()
                 kotlinx.coroutines.delay(500)
                 // Only start recording if we're not in the middle of stopping
+                // And if not already recording
                 if (!isStoppingGeneration) {
                     startRecord()
                 }
@@ -236,10 +266,12 @@ class VoiceChatPresenter(
         // Set up the completion listener with more detailed logging
         audioPlayer?.setOnCompletionListener {
             Log.d(TAG, "Audio playback completed - currentStatus: ${currentStatus.name}, isSpeaking: $isSpeaking, isProcessingLlm: $isProcessingLlm")
+            // Capture current ID to check validity in processTask
+            val genId = currentGenerationId
             currentStatus = VoiceChatPresenterState.PLAY_END
             lifecycleScope.launch {
                 Log.d(TAG, "Sending OnTtsComplete task")
-                taskChannel.send(SerialTask.OnTtsComplete)
+                taskChannel.send(SerialTask.OnTtsComplete(genId))
             }
         }
         
@@ -295,11 +327,34 @@ class VoiceChatPresenter(
 
                 asrService?.onRecognizeText = { text ->
                     lifecycleScope.launch {
-                        if (!isStopped && text.isNotEmpty() && !isSpeaking && !isProcessingLlm) {
+                        if (!isStopped && text.isNotEmpty()) {
+                            if (isSpeaking || isProcessingLlm) {
+                                // Interruption logic
+                                Log.i(TAG, "Interruption triggered by: $text")
+                                isInterrupted = true
+                                currentGenerationId++ // Invalidate old tasks
+                                
+                                // Stop current generation and playback
+                                chatPresenter.stopGenerate()
+                                audioPlayer?.stop()
+                                
+                                // Reset buffers
+                                responseBuilder.clear()
+                                ttsSegmentBuffer.clear()
+                                isFirstChunk = true
+                                
+                                // Note: We don't need to stop record here, we want to keep listening
+                            }
+                            
                             Log.i(TAG, "ASR Result: $text")
-                            taskChannel.send(SerialTask.HandleAsrResult(text))
+                            // Pass the *new* generation ID
+                            taskChannel.send(SerialTask.HandleAsrResult(text, currentGenerationId))
                         } else {
-                            Log.d(TAG, "ASR ignored: text='$text', isSpeaking=$isSpeaking, isProcessingLlm=$isProcessingLlm, isStopped=$isStopped")
+                            if (text.isEmpty()) {
+                                Log.d(TAG, "ASR ignored empty text")
+                            } else {
+                                Log.d(TAG, "ASR text received (system stopped): $text")
+                            }
                         }
                     }
                 }
@@ -348,7 +403,8 @@ class VoiceChatPresenter(
     }
 
     private fun startRecord() {
-        if (!isRecording && !isSpeaking && !isProcessingLlm) {
+        // Allow recording even if speaking or processing to support interruption
+        if (!isRecording) {
             asrService?.startRecord()
             isRecording = true
             Log.d(TAG, "Recording started")
@@ -364,10 +420,13 @@ class VoiceChatPresenter(
             try {
                 if (isStopped) return@launch
                 
-                // Get the greeting message from resources (Android will auto-select language)
+                // Get the greeting message from resources
                 val greetingMessage = activity.getString(com.alibaba.mnnllm.android.R.string.voice_chat_ready_greeting)
                 
-                // Temporarily stop recording while speaking greeting
+                // Temporarily stop recording while speaking greeting (optional, but good for clean start)
+                // Actually, let's keep it consistent: don't stop record?
+                // But specifically for greeting, we might want to ensure no noise.
+                // EXISTING Logic: stopRecord()
                 stopRecord()
                 
                 // Set status to greeting
@@ -388,12 +447,13 @@ class VoiceChatPresenter(
                             // Store the original listener
                             val originalListener = {
                                 Log.d(TAG, "Audio playback completed - currentStatus: ${currentStatus.name}, isSpeaking: $isSpeaking, isProcessingLlm: $isProcessingLlm")
+                                val genId = currentGenerationId
                                 currentStatus = VoiceChatPresenterState.PLAY_END
                                 lifecycleScope.launch {
                                     Log.d(TAG, "Sending OnTtsComplete task")
-                                    taskChannel.send(SerialTask.OnTtsComplete)
+                                    taskChannel.send(SerialTask.OnTtsComplete(genId))
                                 }
-                                Unit // Explicitly return Unit to fix compilation error
+                                Unit
                             }
                             
                             // Set up temporary completion listener for greeting
@@ -452,6 +512,7 @@ class VoiceChatPresenter(
         
         // Reset generation state
         isGenerationFinished = false
+        isInterrupted = true // Ensure any pending callbacks abort
         
         // Stop any ongoing generation and trigger ChatActivity's stop logic
         if (isProcessingLlm || isSpeaking) {
@@ -503,6 +564,8 @@ class VoiceChatPresenter(
         if (isProcessingLlm || isSpeaking) {
             isStoppingGeneration = true
             isGenerationFinished = false
+            isInterrupted = true
+            currentGenerationId++ // Invalidate
             
             // Stop generation in ChatPresenter
             chatPresenter.stopGenerate()
@@ -530,6 +593,7 @@ class VoiceChatPresenter(
                 audioPlayer?.reset()
                 kotlinx.coroutines.delay(200)
                 isStoppingGeneration = false
+                isInterrupted = false 
                 startRecord()
             }
         }
@@ -586,15 +650,16 @@ class VoiceChatPresenter(
     
     override fun onLlmGenerateProgress(progress: String?, generateResultProcessor: GenerateResultProcessor) {
         if (isStopped || isStoppingGeneration || progress == null) return
+        if (isInterrupted) return // Ignore if interrupted
         
         lifecycleScope.launch {
             if (isStopped || isStoppingGeneration) return@launch
             
             if (isFirstChunk) {
-                taskChannel.send(SerialTask.ProcessProgress(progress, true, responseBuilder, ttsSegmentBuffer))
+                taskChannel.send(SerialTask.ProcessProgress(progress, true, responseBuilder, ttsSegmentBuffer, currentGenerationId))
                 isFirstChunk = false
             } else {
-                taskChannel.send(SerialTask.ProcessProgress(progress, false, responseBuilder, ttsSegmentBuffer))
+                taskChannel.send(SerialTask.ProcessProgress(progress, false, responseBuilder, ttsSegmentBuffer, currentGenerationId))
             }
         }
     }
@@ -605,6 +670,7 @@ class VoiceChatPresenter(
     
     override fun onGenerateFinished(benchMarkResult: HashMap<String, Any>) {
         if (isStopped || isStoppingGeneration) return
+        if (isInterrupted) return
         
         if (isGenerationFinished) {
             Log.d(TAG, "onGenerateFinished already processed, ignoring duplicate call")
@@ -616,7 +682,7 @@ class VoiceChatPresenter(
         
         lifecycleScope.launch {
             if (!isStoppingGeneration) {
-                taskChannel.send(SerialTask.ProcessFinalChunk(ttsSegmentBuffer))
+                taskChannel.send(SerialTask.ProcessFinalChunk(ttsSegmentBuffer, currentGenerationId))
             }
         }
     }
@@ -629,4 +695,4 @@ interface VoiceChatView {
     fun showError(message: String)
     fun stopGeneration()
     fun showGreetingMessage()
-} 
+}
