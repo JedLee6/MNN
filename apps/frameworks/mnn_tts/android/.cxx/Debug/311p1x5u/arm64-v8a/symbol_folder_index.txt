@@ -1,0 +1,1 @@
+C:\Users\samuz\local_git_projects\MNN\apps\frameworks\mnn_tts\android\build\intermediates\cxx\Debug\311p1x5u\obj\arm64-v8a
