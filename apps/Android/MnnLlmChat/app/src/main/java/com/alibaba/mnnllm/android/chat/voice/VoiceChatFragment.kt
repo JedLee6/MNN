@@ -132,11 +132,55 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
             presenter?.toggleMute()
         }
 
-        binding.buttonMicAuto.setOnClickListener {
+        binding.layoutMicMode.setOnClickListener {
             presenter?.toggleAutoMic()
         }
     }
     
+    private var isMuted = false
+    
+    // Helper to create the styled text for mic mode
+    private fun getMicModeSpannable(selectedText: String, unselectedText: String): android.text.SpannableString {
+        val fullText = "$selectedText $unselectedText"
+        val spannable = android.text.SpannableString(fullText)
+        
+        // Style selected text (Normal size, Bold, White)
+        val selectedEnd = selectedText.length
+        spannable.setSpan(
+            android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+            0, selectedEnd,
+            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        spannable.setSpan(
+            android.text.style.ForegroundColorSpan(android.graphics.Color.WHITE),
+            0, selectedEnd,
+            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+
+        // Style unselected text (Smaller, Strikethrough, Gray)
+        val unselectedStart = selectedEnd + 1 // +1 for space
+        val unselectedEnd = fullText.length
+        spannable.setSpan(
+            android.text.style.RelativeSizeSpan(0.6f),
+            unselectedStart, unselectedEnd,
+            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        // Use custom span for thicker strikethrough (2dp)
+        val density = resources.displayMetrics.density
+        spannable.setSpan(
+            ThickStrikethroughSpan(1 * density),
+            unselectedStart, unselectedEnd,
+            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        spannable.setSpan(
+            android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#30FFFFFF")),
+            unselectedStart, unselectedEnd,
+            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        
+        return spannable
+    }
+
     private fun setupRecyclerView() {
         transcriptAdapter = VoiceTranscriptAdapter(mutableListOf())
         binding.rvVoiceTranscript.layoutManager = LinearLayoutManager(requireContext())
@@ -327,8 +371,36 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
 
     override fun updateAutoMicButtonState(isEnabled: Boolean) {
         if (_binding == null) return
-        binding.buttonMicAuto.setImageResource(
-            if (isEnabled) R.drawable.ic_mic_auto_on else R.drawable.ic_mic_auto_off
-        )
+        
+        val hardwareText = getString(R.string.mic_mode_hardware)
+        val autoMuteText = getString(R.string.mic_mode_auto_mute)
+        
+        val spannable = if (isEnabled) {
+            getMicModeSpannable(autoMuteText, hardwareText)
+        } else {
+            getMicModeSpannable(hardwareText, autoMuteText)
+        }
+        
+        binding.tvMicModeStatus.text = spannable
+    }
+    
+    // Inner class for custom strikethrough
+    class ThickStrikethroughSpan(private val thickness: Float) : android.text.style.ReplacementSpan() {
+        override fun getSize(paint: android.graphics.Paint, text: CharSequence, start: Int, end: Int, fm: android.graphics.Paint.FontMetricsInt?): Int {
+            return paint.measureText(text, start, end).toInt()
+        }
+
+        override fun draw(canvas: android.graphics.Canvas, text: CharSequence, start: Int, end: Int, x: Float, top: Int, y: Int, bottom: Int, paint: android.graphics.Paint) {
+            canvas.drawText(text, start, end, x, y.toFloat(), paint)
+            
+            val originalStrokeWidth = paint.strokeWidth
+            paint.strokeWidth = thickness
+            
+            // Draw line through center of text body
+            val lineY = y + (paint.ascent() + paint.descent()) / 2f
+            canvas.drawLine(x, lineY, x + paint.measureText(text, start, end), lineY, paint)
+            
+            paint.strokeWidth = originalStrokeWidth
+        }
     }
 } 

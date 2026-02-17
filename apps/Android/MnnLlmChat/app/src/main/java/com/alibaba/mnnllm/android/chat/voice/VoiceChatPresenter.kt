@@ -269,6 +269,10 @@ class VoiceChatPresenter(
         // Register this presenter as an additional listener to ChatPresenter
         chatPresenter.addGenerateListener(this)
         
+        // Sync initial UI state
+        view.updateAutoMicButtonState(isAutoMicEnabled)
+        view.updateMuteButtonState(isMuted)
+        
         initTts()
         startAsr()
     }
