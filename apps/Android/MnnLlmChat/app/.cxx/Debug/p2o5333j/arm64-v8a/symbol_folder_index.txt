@@ -1,0 +1,1 @@
+C:\Users\samuz\local_git_projects\MNN\apps\Android\MnnLlmChat\app\build\intermediates\cxx\Debug\p2o5333j\obj\arm64-v8a

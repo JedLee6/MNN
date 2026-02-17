@@ -1,0 +1,29 @@
+{
+  "buildFiles": [
+    "C:\\Users\\samuz\\local_git_projects\\MNN\\apps\\frameworks\\mnn_tts\\CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "C:\\Users\\samuz\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+      "-C",
+      "C:\\Users\\samuz\\local_git_projects\\MNN\\apps\\frameworks\\mnn_tts\\android\\.cxx\\Debug\\311p1x5u\\arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "C:\\Users\\samuz\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+    "-C",
+    "C:\\Users\\samuz\\local_git_projects\\MNN\\apps\\frameworks\\mnn_tts\\android\\.cxx\\Debug\\311p1x5u\\arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "mnn_tts::@6890427a1f51a3e7e1df": {
+      "artifactName": "mnn_tts",
+      "abi": "arm64-v8a",
+      "output": "C:\\Users\\samuz\\local_git_projects\\MNN\\apps\\frameworks\\mnn_tts\\android\\build\\intermediates\\cxx\\Debug\\311p1x5u\\obj\\arm64-v8a\\libmnn_tts.so",
+      "runtimeFiles": [
+        "C:\\Users\\samuz\\local_git_projects\\MNN\\project\\android\\build_64\\lib\\libMNN.so"
+      ]
+    }
+  }
+}
