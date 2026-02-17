@@ -70,6 +70,8 @@ class VoiceChatPresenter(
     private var isStoppingGeneration = false
     private var isGenerationFinished = false
     
+    private var isMuted = false
+    
     // Interruption support
     private var currentGenerationId = 0L
     @Volatile private var isInterrupted = false
@@ -606,6 +608,14 @@ class VoiceChatPresenter(
         }
     }
     
+    fun muteMicrophone(muted: Boolean) {
+        if (isMuted != muted) {
+            isMuted = muted
+            asrService?.setMuted(muted)
+            Log.d(TAG, "Microphone mute state changed to: $muted")
+        }
+    }
+    
     /**
      * Recreate ASR and TTS services with new models
      * This method should be called when the default voice models have changed
@@ -637,6 +647,9 @@ class VoiceChatPresenter(
                 // Reinitialize services with new models
                 initTts()
                 startAsr()
+                
+                // Restore mute state
+                asrService?.setMuted(isMuted)
                 
                 Log.d(TAG, "Voice services recreated successfully")
             } catch (e: Exception) {
