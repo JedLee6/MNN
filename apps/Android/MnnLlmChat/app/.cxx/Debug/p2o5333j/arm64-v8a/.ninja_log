@@ -1,0 +1,26 @@
+# ninja log v5
+88	630	7930353179546282	CMakeFiles/mnnllmapp.dir/mnn_wrapper_jni.cpp.o	ef88d400ef7c4d6f
+255	8646	7930353259218892	CMakeFiles/mnnllmapp.dir/crash_util.cpp.o	f8daea11bef19259
+508	12111	7930353292452196	CMakeFiles/mnnllmapp.dir/video/image_utils.cpp.o	7af78dc4a2be17f0
+156	22440	7930353396584248	CMakeFiles/mnnllmapp.dir/diffusion_jni.cpp.o	3983d876bb3f4575
+395	19738	7930353368718807	CMakeFiles/mnnllmapp.dir/video/video_decoder.cpp.o	91935ebb2300199d
+456	15112	7930353315570715	CMakeFiles/mnnllmapp.dir/video/byte_buffer_decoder.cpp.o	d526f852214306bf
+562	16851	7930353339285208	CMakeFiles/mnnllmapp.dir/video/video_processor.cpp.o	c08639c3e4655080
+2	24489	7930353416376806	CMakeFiles/mnnllmapp.dir/llm_mnn_jni.cpp.o	670e8b81058485ff
+354	20019	7930353372199784	CMakeFiles/mnnllmapp.dir/processor.cpp.o	223d7b7ddcc22958
+312	27245	7930353444342048	CMakeFiles/mnnllmapp.dir/llm_session.cpp.o	4ee2ef69c5945035
+10	1688	7930366874124506	CMakeFiles/mnnllmapp.dir/diffusion_session.cpp.o	703eda1f0ae94524
+1690	1987	7930366877055643	C:/Users/samuz/local_git_projects/MNN/apps/Android/MnnLlmChat/app/build/intermediates/cxx/Debug/p2o5333j/obj/arm64-v8a/libmnnllmapp.so	21116ce2cb46da1e
+44	549	7930413611006465	CMakeFiles/mnnllmapp.dir/mnn_wrapper_jni.cpp.o	ef88d400ef7c4d6f
+225	7443	7930413678405148	CMakeFiles/mnnllmapp.dir/video/image_utils.cpp.o	7af78dc4a2be17f0
+174	8542	7930413690821305	CMakeFiles/mnnllmapp.dir/video/byte_buffer_decoder.cpp.o	d526f852214306bf
+161	10679	7930413712235393	CMakeFiles/mnnllmapp.dir/video/video_decoder.cpp.o	91935ebb2300199d
+211	11919	7930413723883066	CMakeFiles/mnnllmapp.dir/video/video_processor.cpp.o	c08639c3e4655080
+60	14773	7930413752655037	CMakeFiles/mnnllmapp.dir/diffusion_jni.cpp.o	3983d876bb3f4575
+197	14860	7930413753638116	CMakeFiles/mnnllmapp.dir/processor.cpp.o	223d7b7ddcc22958
+24	16066	7930413765783123	CMakeFiles/mnnllmapp.dir/llm_mnn_jni.cpp.o	670e8b81058485ff
+144	17402	7930413779317668	CMakeFiles/mnnllmapp.dir/llm_session.cpp.o	4ee2ef69c5945035
+52	5181	7930414951710851	CMakeFiles/mnnllmapp.dir/diffusion_session.cpp.o	703eda1f0ae94524
+5183	6038	7930414960185713	C:/Users/samuz/local_git_projects/MNN/apps/Android/MnnLlmChat/app/build/intermediates/cxx/Debug/p2o5333j/obj/arm64-v8a/libmnnllmapp.so	21116ce2cb46da1e
+16	2384	7930470627555580	CMakeFiles/mnnllmapp.dir/diffusion_session.cpp.o	703eda1f0ae94524
+2384	2723	7930470630842987	C:/Users/samuz/local_git_projects/MNN/apps/Android/MnnLlmChat/app/build/intermediates/cxx/Debug/p2o5333j/obj/arm64-v8a/libmnnllmapp.so	21116ce2cb46da1e

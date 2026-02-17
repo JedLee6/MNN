@@ -1,0 +1,1 @@
+C:\Users\samuz\local_git_projects\MNN\apps\Android\MnnLlmChat\app\src\main\cpp\CMakeLists.txt
