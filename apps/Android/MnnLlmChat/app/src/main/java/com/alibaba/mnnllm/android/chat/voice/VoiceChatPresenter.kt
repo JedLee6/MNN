@@ -379,6 +379,11 @@ class VoiceChatPresenter(
             responseBuilder.clear()
             ttsSegmentBuffer.clear()
             isFirstChunk = true
+
+            // Update UI status to Listening
+            lifecycleScope.launch(Dispatchers.Main) {
+                view.updateStatus(VoiceChatState.LISTENING)
+            }
         }
     }
 
