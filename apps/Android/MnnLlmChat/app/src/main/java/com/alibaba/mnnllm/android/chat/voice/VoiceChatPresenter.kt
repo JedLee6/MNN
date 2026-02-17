@@ -177,7 +177,7 @@ class VoiceChatPresenter(
                 
                 // Reset thinking state
                 isThinking = false
-                
+
                 if (task.ttsSegmentBuffer.isNotEmpty()) {
                     val textToSpeak = task.ttsSegmentBuffer.toString()
                     task.ttsSegmentBuffer.clear()
@@ -204,6 +204,11 @@ class VoiceChatPresenter(
                 // Reset interruption flag as we are starting processing
                 isInterrupted = false
                 
+                // Auto-mute if enabled
+                if (isAutoMicEnabled) {
+                    muteMicrophone(true)
+                }
+
                 currentStatus = VoiceChatPresenterState.GENERATING_TEXT
                 withContext(Dispatchers.Main) {
                     view.addTranscript(Transcript(isUser = true, text = task.text))
@@ -223,6 +228,12 @@ class VoiceChatPresenter(
                 isProcessingLlm = false
                 isSpeaking = false
                 isThinking = false
+
+                // Auto-unmute if enabled
+                if (isAutoMicEnabled) {
+                    muteMicrophone(false)
+                }
+
                 currentStatus = VoiceChatPresenterState.LISTENING
                 withContext(Dispatchers.Main) {
                     view.updateStatus(VoiceChatState.LISTENING)
@@ -600,6 +611,12 @@ class VoiceChatPresenter(
                 }
                 // Reset audio player and restart recording
                 audioPlayer?.reset()
+
+                // Auto-unmute if enabled
+                if (isAutoMicEnabled) {
+                    muteMicrophone(false)
+                }
+
                 kotlinx.coroutines.delay(200)
                 isStoppingGeneration = false
                 isInterrupted = false 
@@ -608,11 +625,28 @@ class VoiceChatPresenter(
         }
     }
     
+    private var isAutoMicEnabled = false
+
+    fun toggleMute() {
+        muteMicrophone(!isMuted)
+    }
+
+    fun toggleAutoMic() {
+        isAutoMicEnabled = !isAutoMicEnabled
+        lifecycleScope.launch(Dispatchers.Main) {
+            view.updateAutoMicButtonState(isAutoMicEnabled)
+        }
+        Log.d(TAG, "Auto-mic toggled: $isAutoMicEnabled")
+    }
+
     fun muteMicrophone(muted: Boolean) {
         if (isMuted != muted) {
             isMuted = muted
             asrService?.setMuted(muted)
             Log.d(TAG, "Microphone mute state changed to: $muted")
+            lifecycleScope.launch(Dispatchers.Main) {
+                view.updateMuteButtonState(muted)
+            }
         }
     }
     
@@ -715,4 +749,6 @@ interface VoiceChatView {
     fun showError(message: String)
     fun stopGeneration()
     fun showGreetingMessage()
+    fun updateMuteButtonState(isMuted: Boolean)
+    fun updateAutoMicButtonState(isEnabled: Boolean)
 }

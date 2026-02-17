@@ -131,18 +131,12 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
         }
 
         binding.buttonMute.setOnClickListener {
-            toggleMute()
+            presenter?.toggleMute()
         }
-    }
-    
-    private var isMuted = false
-    
-    private fun toggleMute() {
-        isMuted = !isMuted
-        presenter?.muteMicrophone(isMuted)
-        binding.buttonMute.setImageResource(
-            if (isMuted) R.drawable.ic_mic_off else R.drawable.ic_mic_on
-        )
+
+        binding.buttonMicAuto.setOnClickListener {
+            presenter?.toggleAutoMic()
+        }
     }
     
     private fun setupRecyclerView() {
@@ -333,5 +327,19 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
         binding.rvVoiceTranscript.scrollToPosition(transcriptAdapter.itemCount - 1)
         
         Log.d(TAG, "Greeting message shown: $greetingMessage")
+    }
+
+    override fun updateMuteButtonState(isMuted: Boolean) {
+        if (_binding == null) return
+        binding.buttonMute.setImageResource(
+            if (isMuted) R.drawable.ic_mic_off else R.drawable.ic_mic_on
+        )
+    }
+
+    override fun updateAutoMicButtonState(isEnabled: Boolean) {
+        if (_binding == null) return
+        binding.buttonMicAuto.setImageResource(
+            if (isEnabled) R.drawable.ic_mic_auto_on else R.drawable.ic_mic_auto_off
+        )
     }
 } 
