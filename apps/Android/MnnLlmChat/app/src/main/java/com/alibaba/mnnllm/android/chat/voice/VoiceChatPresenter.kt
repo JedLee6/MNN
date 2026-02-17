@@ -624,6 +624,12 @@ class VoiceChatPresenter(
                 }
                 // Reset audio player and restart recording
                 audioPlayer?.reset()
+
+                // Auto-unmute if enabled
+                if (isAutoMicEnabled) {
+                    muteMicrophone(false)
+                }
+
                 kotlinx.coroutines.delay(200)
                 isStoppingGeneration = false
                 isInterrupted = false 
