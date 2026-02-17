@@ -127,6 +127,20 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
         binding.tvVoiceChatStatus.setOnClickListener {
             presenter?.stopGeneration()
         }
+
+        binding.buttonMute.setOnClickListener {
+            toggleMute()
+        }
+    }
+    
+    private var isMuted = false
+    
+    private fun toggleMute() {
+        isMuted = !isMuted
+        presenter?.muteMicrophone(isMuted)
+        binding.buttonMute.setImageResource(
+            if (isMuted) R.drawable.ic_mic_off else R.drawable.ic_mic_on
+        )
     }
     
     private fun setupRecyclerView() {

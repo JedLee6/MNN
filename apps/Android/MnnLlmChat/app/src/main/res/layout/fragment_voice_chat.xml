@@ -57,6 +57,18 @@
             tools:visibility="visible" />
 
         <ImageView
+            android:id="@+id/button_mute"
+            android:layout_width="70dp"
+            android:layout_height="70dp"
+            android:layout_alignTop="@+id/button_end_call"
+            android:layout_alignBottom="@+id/button_end_call"
+            android:layout_toStartOf="@+id/button_end_call"
+            android:layout_marginEnd="32dp"
+            android:src="@drawable/ic_mic_on"
+            android:background="@drawable/bg_mute_circle" 
+            android:padding="20dp"/>
+
+        <ImageView
             android:id="@+id/button_end_call"
             android:layout_width="70dp"
             android:layout_height="70dp"
