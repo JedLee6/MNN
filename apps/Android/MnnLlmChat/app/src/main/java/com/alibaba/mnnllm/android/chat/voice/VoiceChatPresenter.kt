@@ -6,6 +6,8 @@ package com.alibaba.mnnllm.android.chat.voice
 import android.app.Activity
 import android.media.AudioManager
 import android.util.Log
+import org.json.JSONObject
+import java.io.File
 import com.alibaba.mnnllm.android.asr.AsrService
 import com.alibaba.mnnllm.android.audio.AudioChunksPlayer
 import com.alibaba.mnnllm.android.chat.ChatPresenter
@@ -415,6 +417,10 @@ class VoiceChatPresenter(
                     
                     val modelDir = VoiceModelPathUtils.getTtsModelPath(activity)
                     Log.i(TAG, "Using TTS model path: $modelDir")
+                    
+                    // Apply TTS config overrides before init
+                    applyTtsConfigOverrides(modelDir)
+                    
                     val initResult = ttsService?.init(modelDir)
                     if (initResult != true) {
                         Log.e(TAG, "TTS Service initialization failed with path: $modelDir")
@@ -427,6 +433,33 @@ class VoiceChatPresenter(
                 Log.e(TAG, "TTS initialization failed", e)
                 if (!isStopped) withContext(Dispatchers.Main) { view.showError("TTS init failed: ${e.message}") }
             }
+        }
+    }
+
+    /**
+     * Apply TTS configuration overrides by modifying config.json on device
+     * before native init reads it. This avoids rebuilding the .so file.
+     */
+    private fun applyTtsConfigOverrides(modelDir: String) {
+        try {
+            val configFile = File(modelDir, "config.json")
+            if (!configFile.exists()) {
+                Log.w(TAG, "TTS config.json not found at: ${configFile.absolutePath}")
+                return
+            }
+
+            val json = JSONObject(configFile.readText())
+
+            // Override TTS parameters here:
+            json.put("iter_steps", 20)      // Higher = better quality (default: 10)
+            json.put("speed", 1)           // 1.0 = normal speed
+            json.put("speaker_id", "M1")     // Voice style
+             json.put("precision", "fp16") // Uncomment to change precision
+
+            configFile.writeText(json.toString(2))
+            Log.i(TAG, "TTS config overrides applied: iter_steps=20, speed=1.0, speaker_id=F1")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to apply TTS config overrides", e)
         }
     }
 
