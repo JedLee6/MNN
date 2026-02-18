@@ -140,12 +140,13 @@ class VoiceChatPresenter(
                     Log.d(TAG, "Exiting thinking mode")
                 }
                 
-                // Only show normal output in transcripts (not thinking content)
+                // Only process normal output (not thinking content)
                 if (normalOutput.isNotEmpty()) {
                     Log.d(TAG, "Normal output is not empty: '$normalOutput' progress: ${task.progress}")
                     task.responseBuilder.clear()
                     task.responseBuilder.append(normalOutput)
-                    withContext(Dispatchers.Main) { view.updateLastTranscript(normalOutput) }
+                    // NOTE: Do NOT update transcript here. Transcript updates are deferred
+                    // to the audioWorker to stay in sync with TTS playback.
                     
                     // Process TTS for normal output only
                     val delimiters = "[.,!。，！？?\n、：；:]".toRegex()
@@ -159,8 +160,8 @@ class VoiceChatPresenter(
                             currentStatus = VoiceChatPresenterState.PLAYING
                             withContext(Dispatchers.Main) { view.updateStatus(VoiceChatState.SPEAKING) }
                             
-                            // Send to TTS worker
-                            ttsWorkChannel.trySend(TtsWorkItem(textToSpeak, task.generationId))
+                            // Send to TTS worker with current cumulative text for display sync
+                            ttsWorkChannel.trySend(TtsWorkItem(textToSpeak, task.generationId, displayText = normalOutput))
                         }
                     }
                 }
@@ -183,6 +184,9 @@ class VoiceChatPresenter(
                     view.updateLastTranscriptLoading(false)
                 }
 
+                // Get the final cumulative normal output for display
+                val finalNormalOutput = generateResultProcessor?.getNormalOutput() ?: ""
+
                 if (task.ttsSegmentBuffer.isNotEmpty()) {
                     val textToSpeak = task.ttsSegmentBuffer.toString()
                     task.ttsSegmentBuffer.clear()
@@ -190,16 +194,13 @@ class VoiceChatPresenter(
                     currentStatus = VoiceChatPresenterState.PLAYING
                     withContext(Dispatchers.Main) { view.updateStatus(VoiceChatState.SPEAKING) }
                     
-                    // Send final text to TTS worker
-                    ttsWorkChannel.trySend(TtsWorkItem(textToSpeak, task.generationId))
+                    // Send final text to TTS worker with complete display text
+                    ttsWorkChannel.trySend(TtsWorkItem(textToSpeak, task.generationId, displayText = finalNormalOutput))
                 }
                 
                 if (!isStoppingGeneration) {
-                    // Send End of Generation signal
-                    // We send an empty item with isFinal=true to indicate avoiding endChunk until audio finishes
-                    // Actually, we need to flow this through the pipeline so endChunk happens after audio plays
-                    // So we send a special TtsWorkItem that results in an isFinal AudioWorkItem
-                    ttsWorkChannel.trySend(TtsWorkItem("", task.generationId, isFinal = true))
+                    // Send End of Generation signal with complete display text
+                    ttsWorkChannel.trySend(TtsWorkItem("", task.generationId, isFinal = true, displayText = finalNormalOutput))
                 }
                 Log.d(TAG, "progress is null end")
             }
@@ -281,22 +282,33 @@ class VoiceChatPresenter(
                 if (item.text.isNotEmpty()) {
                     Log.d(TAG, "TTS Worker: Processing '${item.text}'")
                     val audioData = ttsService?.process(item.text, 0)
+                    // Re-check generation after blocking call returns
+                    if (item.generationId != currentGenerationId) {
+                        Log.d(TAG, "TTS Worker: Generation changed during processing, discarding result")
+                        continue
+                    }
                     if (audioData != null && audioData.isNotEmpty()) {
-                        audioWorkChannel.send(AudioWorkItem(audioData, item.generationId))
+                        audioWorkChannel.send(AudioWorkItem(audioData, item.generationId, displayText = item.displayText))
                     } else {
                         Log.w(TAG, "TTS Worker: Failed to generate audio for '${item.text}'")
                     }
                 }
                 
                 if (item.isFinal) {
+                    // Re-check generation before sending final marker
+                    if (item.generationId != currentGenerationId) {
+                        Log.d(TAG, "TTS Worker: Generation changed, skipping final marker")
+                        continue
+                    }
                     Log.d(TAG, "TTS Worker: Sending Final marker")
-                    audioWorkChannel.send(AudioWorkItem(null, item.generationId, isFinal = true))
+                    audioWorkChannel.send(AudioWorkItem(null, item.generationId, isFinal = true, displayText = item.displayText))
                 }
             }
         }
         
         // Audio Worker
-        lifecycleScope.launch(Dispatchers.IO) { // Using IO as playChunk might block slightly or use its own pool
+        lifecycleScope.launch(Dispatchers.IO) {
+            var lastPlayedGenId = -1L // Track first segment per generation
             for (item in audioWorkChannel) {
                 if (isStopped) break
                 // Generation check
@@ -306,11 +318,41 @@ class VoiceChatPresenter(
                 }
                 
                 if (item.audioData != null) {
+                    // Re-check generation right before playing
+                    if (item.generationId != currentGenerationId) {
+                        Log.d(TAG, "Audio Worker: Generation changed before playChunk, skipping")
+                        continue
+                    }
+                    
+                    // 250ms pause before non-first segments for natural speech rhythm
+                    val isFirstSegment = (lastPlayedGenId != item.generationId)
+                    if (!isFirstSegment) {
+                        kotlinx.coroutines.delay(250)
+                    }
+                    lastPlayedGenId = item.generationId
+                    
+                    // Sync transcript with audio — update UI text when this segment starts playing
+                    if (!item.displayText.isNullOrEmpty()) {
+                        withContext(Dispatchers.Main) {
+                            view.updateLastTranscriptLoading(false)
+                            view.updateLastTranscript(item.displayText)
+                        }
+                    }
+                    
                     Log.d(TAG, "Audio Worker: Playing chunk (${item.audioData.size} bytes)")
                     audioPlayer?.playChunk(item.audioData)
                 }
                 
                 if (item.isFinal) {
+                    // Re-check generation right before endChunk
+                    if (item.generationId != currentGenerationId) {
+                        Log.d(TAG, "Audio Worker: Generation changed before endChunk, skipping")
+                        continue
+                    }
+                    // Show complete text when all audio finishes
+                    if (!item.displayText.isNullOrEmpty()) {
+                        withContext(Dispatchers.Main) { view.updateLastTranscript(item.displayText) }
+                    }
                     Log.d(TAG, "Audio Worker: Calling endChunk")
                     audioPlayer?.endChunk()
                 }
@@ -665,7 +707,8 @@ class VoiceChatPresenter(
         if (isProcessingLlm || isSpeaking) {
             isStoppingGeneration = true
             isGenerationFinished = false
-            interruptCurrentSession()
+            currentGenerationId++ // Invalidate pipeline items first
+            isInterrupted = true
             
             // Stop generation in ChatPresenter
             chatPresenter.stopGenerate()
@@ -675,31 +718,39 @@ class VoiceChatPresenter(
                 activity.onStopGenerationRequested()
             }
             
-            audioPlayer?.stop()
+            // Stop current playback immediately (reset = stop + recreate)
+            audioPlayer?.reset()
+
+            // Reset buffers
+            responseBuilder.clear()
+            ttsSegmentBuffer.clear()
+            isFirstChunk = true
+
             isProcessingLlm = false
             isSpeaking = false
+            isThinking = false
             currentStatus = VoiceChatPresenterState.LISTENING
             
             lifecycleScope.launch {
                 withContext(Dispatchers.Main) {
                     view.updateStatus(VoiceChatState.STOPPING)
+                    view.updateLastTranscriptLoading(false)
                 }
-                // Small delay to show stopping state
-                kotlinx.coroutines.delay(300)
-                withContext(Dispatchers.Main) {
-                    view.updateStatus(VoiceChatState.LISTENING)
-                }
-                // Reset audio player and restart recording
-                audioPlayer?.reset()
 
                 // Auto-unmute if enabled
                 if (isAutoMicEnabled) {
                     muteMicrophone(false)
                 }
 
-                kotlinx.coroutines.delay(200)
+                // Short delay to let pipeline drain stale items
+                kotlinx.coroutines.delay(300)
+
+                withContext(Dispatchers.Main) {
+                    view.updateStatus(VoiceChatState.LISTENING)
+                }
+
                 isStoppingGeneration = false
-                isInterrupted = false 
+                isInterrupted = false
                 startRecord()
             }
         }
@@ -826,13 +877,15 @@ class VoiceChatPresenter(
     private data class TtsWorkItem(
         val text: String, 
         val generationId: Long, 
-        val isFinal: Boolean = false
+        val isFinal: Boolean = false,
+        val displayText: String = ""
     )
 
     private data class AudioWorkItem(
         val audioData: ShortArray?, 
         val generationId: Long, 
-        val isFinal: Boolean = false
+        val isFinal: Boolean = false,
+        val displayText: String? = null
     )
 
 
