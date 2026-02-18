@@ -307,6 +307,13 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
         transcriptAdapter.updateLastTranscriptLoading(isLoading)
     }
 
+    override fun updateLastTranscriptHighlight(text: String, spokenLength: Int) {
+        if (_binding == null) return
+        
+        transcriptAdapter.updateLastTranscriptHighlight(text, spokenLength)
+        scrollToBottom()
+    }
+
     override fun showError(message: String) {
         if (context == null) return // Guard against null context
         
