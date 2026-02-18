@@ -3,6 +3,9 @@
 
 package com.alibaba.mnnllm.android.chat.voice
 
+import android.graphics.Color
+import android.text.SpannableString
+import android.text.style.ForegroundColorSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -13,7 +16,8 @@ import com.alibaba.mnnllm.android.utils.UiUtils.getThemeColor
 
 data class Transcript(
     val isUser: Boolean,
-    val text: String
+    val text: String,
+    val spokenLength: Int = 0  // boundary: [0,spokenLength)=spoken(gray), [spokenLength,end)=speaking(white)
 )
 
 class VoiceTranscriptAdapter(private val transcripts: MutableList<Transcript>) :
@@ -23,17 +27,50 @@ class VoiceTranscriptAdapter(private val transcripts: MutableList<Transcript>) :
         val messageTextView: TextView = view.findViewById(R.id.tv_message)
 
         fun bind(transcript: Transcript) {
-            messageTextView.text = transcript.text
-            val color = if (transcript.isUser) {
-                itemView.context.getThemeColor(com.google.android.material.R.attr.colorPrimary)
+            if (transcript.isUser) {
+                messageTextView.text = transcript.text
+                messageTextView.setTextColor(
+                    itemView.context.getThemeColor(com.google.android.material.R.attr.colorPrimary)
+                )
             } else {
-                itemView.context.getThemeColor(com.google.android.material.R.attr.colorOnSurface)
+                applyHighlight(transcript)
             }
             messageTextView.setTextColor(color)
         }
 
         fun updateText(transcript: Transcript) {
-            messageTextView.text = transcript.text.trim()
+            if (transcript.isUser) {
+                messageTextView.text = transcript.text.trim()
+            } else {
+                applyHighlight(transcript)
+            }
+        }
+
+        private fun applyHighlight(transcript: Transcript) {
+            val text = transcript.text.trim()
+            if (text.isEmpty()) {
+                messageTextView.text = text
+                return
+            }
+            val spokenLen = transcript.spokenLength.coerceIn(0, text.length)
+            val spannable = SpannableString(text)
+            val spokenColor = Color.parseColor("#88FFFFFF")  // gray (semi-transparent white)
+            val speakingColor = itemView.context.getThemeColor(
+                com.google.android.material.R.attr.colorOnSurface
+            )
+            if (spokenLen > 0) {
+                spannable.setSpan(
+                    ForegroundColorSpan(spokenColor), 0, spokenLen,
+                    SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+            if (spokenLen < text.length) {
+                spannable.setSpan(
+                    ForegroundColorSpan(speakingColor), spokenLen, text.length,
+                    SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+            messageTextView.text = spannable
         }
     }
 
@@ -76,4 +113,13 @@ class VoiceTranscriptAdapter(private val transcripts: MutableList<Transcript>) :
             notifyItemChanged(lastIndex, Unit)
         }
     }
-} 
+
+    fun updateLastTranscriptHighlight(newText: String, spokenLength: Int) {
+        if (transcripts.isNotEmpty()) {
+            val lastIndex = transcripts.size - 1
+            val oldTranscript = transcripts[lastIndex]
+            transcripts[lastIndex] = oldTranscript.copy(text = newText, spokenLength = spokenLength)
+            notifyItemChanged(lastIndex, Unit)
+        }
+    }
+}
