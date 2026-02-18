@@ -298,7 +298,7 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
                     val childBottom = lastChild.bottom
                     if (childBottom > rvHeight) {
                         // Smooth scroll to the bottom of the last item
-                        rv.smoothScrollBy(0, childBottom - rvHeight)
+                        rv.smoothScrollBy(0, childBottom - rvHeight, null, 300)
                     }
                 }
             }
