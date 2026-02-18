@@ -273,14 +273,36 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
         
         updateViewVisibility()
         transcriptAdapter.addTranscript(transcript)
-        binding.rvVoiceTranscript.scrollToPosition(transcriptAdapter.itemCount - 1)
+        scrollToBottom()
     }
 
     override fun updateLastTranscript(text: String) {
         if (_binding == null) return // Guard against null binding
         
         transcriptAdapter.updateLastTranscript(text)
-        binding.rvVoiceTranscript.scrollToPosition(transcriptAdapter.itemCount - 1)
+        scrollToBottom()
+    }
+
+    private fun scrollToBottom() {
+        val rv = binding.rvVoiceTranscript
+        val lastPos = transcriptAdapter.itemCount - 1
+        if (lastPos < 0) return
+        rv.post {
+            val layoutManager = rv.layoutManager as? LinearLayoutManager ?: return@post
+            // First, ensure the last item is laid out
+            layoutManager.scrollToPositionWithOffset(lastPos, 0)
+            rv.post {
+                val lastChild = layoutManager.findViewByPosition(lastPos)
+                if (lastChild != null) {
+                    val rvHeight = rv.height - rv.paddingBottom
+                    val childBottom = lastChild.bottom
+                    if (childBottom > rvHeight) {
+                        // Smooth scroll to the bottom of the last item
+                        rv.smoothScrollBy(0, childBottom - rvHeight)
+                    }
+                }
+            }
+        }
     }
 
     override fun updateLastTranscriptLoading(isLoading: Boolean) {
