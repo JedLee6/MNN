@@ -300,6 +300,7 @@ class VoiceChatPresenter(
         // Audio Worker
         lifecycleScope.launch(Dispatchers.IO) {
             var lastPlayedGenId = -1L // Track first segment per generation
+            var previousDisplayTextLength = 0 // Tracks spoken text boundary for highlight
             for (item in audioWorkChannel) {
                 if (isStopped) break
                 // Generation check
@@ -323,6 +324,7 @@ class VoiceChatPresenter(
                     lastPlayedGenId = item.generationId
                     
                     // Sync transcript with audio — update UI text when this segment starts playing
+                    // Mark previous text as spoken (gray), new portion as speaking (white)
                     if (!item.displayText.isNullOrEmpty()) {
                         withContext(Dispatchers.Main) {
                             view.updateLastTranscriptHighlight(item.displayText, previousDisplayTextLength)
@@ -331,6 +333,9 @@ class VoiceChatPresenter(
                     
                     Log.d(TAG, "Audio Worker: Playing chunk (${item.audioData.size} bytes)")
                     audioPlayer?.playChunk(item.audioData)
+
+                    // After playback completes, mark this segment as spoken
+                    previousDisplayTextLength = item.displayText?.length ?: previousDisplayTextLength
                 }
                 
                 if (item.isFinal) {
@@ -339,10 +344,13 @@ class VoiceChatPresenter(
                         Log.d(TAG, "Audio Worker: Generation changed before endChunk, skipping")
                         continue
                     }
-                    // Show complete text when all audio finishes
+                    // Show complete text when all audio finishes — all spoken (gray)
                     if (!item.displayText.isNullOrEmpty()) {
-                        withContext(Dispatchers.Main) { view.updateLastTranscript(item.displayText) }
+                        withContext(Dispatchers.Main) {
+                            view.updateLastTranscriptHighlight(item.displayText, item.displayText.length)
+                        }
                     }
+                    previousDisplayTextLength = 0 // Reset for next generation
                     Log.d(TAG, "Audio Worker: Calling endChunk")
                     audioPlayer?.endChunk()
                 }
@@ -914,6 +922,7 @@ interface VoiceChatView {
     fun updateStatus(state: VoiceChatState)
     fun addTranscript(transcript: Transcript)
     fun updateLastTranscript(text: String)
+    fun updateLastTranscriptHighlight(text: String, spokenLength: Int)
     fun showError(message: String)
     fun stopGeneration()
     fun showGreetingMessage()
