@@ -123,4 +123,88 @@ object ImageUtils {
             false
         }
     }
+
+    /**
+     * Resizes and compresses an image file.
+     * @param file The image file to compress.
+     * @param maxDimension The maximum width or height of the compressed image.
+     * @param quality The JPEG compression quality (0-100).
+     */
+    fun compressImageFile(file: java.io.File, maxDimension: Int = 1024, quality: Int = 80) {
+        try {
+            val options = android.graphics.BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            android.graphics.BitmapFactory.decodeFile(file.absolutePath, options)
+
+            var inSampleSize = 1
+            if (options.outHeight > maxDimension || options.outWidth > maxDimension) {
+                val halfHeight = options.outHeight / 2
+                val halfWidth = options.outWidth / 2
+                while (halfHeight / inSampleSize >= maxDimension && halfWidth / inSampleSize >= maxDimension) {
+                    inSampleSize *= 2
+                }
+            }
+
+            options.inJustDecodeBounds = false
+            options.inSampleSize = inSampleSize
+            val bitmap = android.graphics.BitmapFactory.decodeFile(file.absolutePath, options) ?: return
+
+            // Handle orientation
+            val exif = try {
+                android.media.ExifInterface(file.absolutePath)
+            } catch (e: Exception) {
+                null
+            }
+            val orientation = exif?.getAttributeInt(
+                android.media.ExifInterface.TAG_ORIENTATION,
+                android.media.ExifInterface.ORIENTATION_UNDEFINED
+            ) ?: android.media.ExifInterface.ORIENTATION_UNDEFINED
+
+            val matrix = android.graphics.Matrix()
+            when (orientation) {
+                android.media.ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+                android.media.ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+                android.media.ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+            }
+
+            val rotatedBitmap = if (!matrix.isIdentity) {
+                android.graphics.Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+            } else {
+                bitmap
+            }
+
+            val finalBitmap = if (rotatedBitmap.width > maxDimension || rotatedBitmap.height > maxDimension) {
+                val ratio = rotatedBitmap.width.toFloat() / rotatedBitmap.height.toFloat()
+                val targetWidth: Int
+                val targetHeight: Int
+                if (ratio > 1) {
+                    targetWidth = maxDimension
+                    targetHeight = (maxDimension / ratio).toInt()
+                } else {
+                    targetHeight = maxDimension
+                    targetWidth = (maxDimension * ratio).toInt()
+                }
+                android.graphics.Bitmap.createScaledBitmap(rotatedBitmap, targetWidth, targetHeight, true)
+            } else {
+                rotatedBitmap
+            }
+
+            java.io.FileOutputStream(file).use { out ->
+                finalBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, out)
+            }
+            
+            if (finalBitmap != rotatedBitmap && finalBitmap != bitmap) {
+                finalBitmap.recycle()
+            }
+            if (rotatedBitmap != bitmap) {
+                rotatedBitmap.recycle()
+            }
+            bitmap.recycle()
+            
+            Log.d(TAG, "Image compressed: ${file.length() / 1024} KB")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to compress image", e)
+        }
+    }
 }

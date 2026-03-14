@@ -302,8 +302,10 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
                 }
 
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    // Compress image on the background thread
+                    com.alibaba.mnnllm.android.utils.ImageUtils.compressImageFile(photoFile)
                     capturedImageUri = Uri.fromFile(photoFile)
-                    Log.d(TAG, "Photo capture succeeded: $capturedImageUri")
+                    Log.d(TAG, "Photo capture and compression succeeded: $capturedImageUri")
                 }
             }
         )
