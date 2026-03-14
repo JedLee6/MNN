@@ -194,7 +194,19 @@ class VoiceChatPresenter(
                     view.updateStatus(VoiceChatState.PROCESSING)
                 }
                 stopRecord()
-                llmGenerate(task.text)
+                val capturedImageUri = view.getCapturedImageUri()
+                if (capturedImageUri != null) {
+                    Log.i(TAG, "Sending message with image: $capturedImageUri")
+                    val userData = com.alibaba.mnnllm.android.chat.model.ChatDataItem(com.alibaba.mnnllm.android.chat.chatlist.ChatViewHolders.USER)
+                    userData.text = task.text
+                    userData.imageUris = listOf(capturedImageUri)
+                    userData.time = chatPresenter.dateFormat.format(java.util.Date())
+                    
+                    chatPresenter.sendMessage(userData)
+                    view.clearCapturedImageUri()
+                } else {
+                    llmGenerate(task.text)
+                }
             }
             is SerialTask.OnTtsComplete -> {
                 // Always handle TTS completion to ensure proper state transition
@@ -311,6 +323,13 @@ class VoiceChatPresenter(
                         } else {
                             Log.d(TAG, "ASR ignored: text='$text', isSpeaking=$isSpeaking, isProcessingLlm=$isProcessingLlm, isStopped=$isStopped")
                         }
+                    }
+                }
+
+                asrService?.onSpeechDetected = {
+                    if (view.isCameraEnabled() && !isSpeaking && !isProcessingLlm) {
+                        Log.d(TAG, "Speech detected, capturing photo...")
+                        view.capturePhoto()
                     }
                 }
                 
@@ -664,6 +683,10 @@ interface VoiceChatView {
     fun showGreetingMessage()
     fun updateMuteButtonState(isMuted: Boolean)
     fun updateEchoCancelMode(isAutoMuteForEchoCancelMode: Boolean)
+    fun capturePhoto()
+    fun getCapturedImageUri(): android.net.Uri?
+    fun clearCapturedImageUri()
+    fun isCameraEnabled(): Boolean
 }
 
 interface TtsClient {
