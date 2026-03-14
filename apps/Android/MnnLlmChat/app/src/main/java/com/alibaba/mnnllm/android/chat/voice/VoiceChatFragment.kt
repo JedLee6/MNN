@@ -71,6 +71,7 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
     // Camera
     private var isCameraEnabled = false
     private var imageCapture: ImageCapture? = null
+    private var currentCameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
     private var cameraExecutor: ExecutorService? = null
     private var capturedImageUri: Uri? = null
     private var modelId: String = ""
@@ -163,6 +164,10 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
         binding.buttonCamera.setOnClickListener {
             toggleCamera()
         }
+
+        binding.buttonCameraSwitch.setOnClickListener {
+            switchCamera()
+        }
     }
 
     private fun toggleCamera() {
@@ -209,7 +214,7 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                 .build()
 
-            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+            val cameraSelector = currentCameraSelector
 
             try {
                 cameraProvider.unbindAll()
@@ -229,6 +234,7 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
                 binding.toolbar.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 binding.rvVoiceTranscript.setBackgroundColor(android.graphics.Color.parseColor("#33000000"))
                 binding.buttonCamera.setImageResource(R.drawable.ic_camera_on)
+                binding.buttonCameraSwitch.visibility = View.VISIBLE
                 Toast.makeText(requireContext(), R.string.voice_chat_camera_on, Toast.LENGTH_SHORT).show()
             } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
@@ -244,6 +250,7 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
             isCameraEnabled = false
             imageCapture = null
             binding.cameraPreview.visibility = View.GONE
+            binding.buttonCameraSwitch.visibility = View.GONE
             
             // Restore original background using theme attribute
             val typedValue = android.util.TypedValue()
@@ -258,6 +265,17 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
             binding.buttonCamera.setImageResource(R.drawable.ic_camera_off)
             Toast.makeText(requireContext(), R.string.voice_chat_camera_off, Toast.LENGTH_SHORT).show()
         }, ContextCompat.getMainExecutor(requireContext()))
+    }
+
+    private fun switchCamera() {
+        currentCameraSelector = if (currentCameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
+            CameraSelector.DEFAULT_FRONT_CAMERA
+        } else {
+            CameraSelector.DEFAULT_BACK_CAMERA
+        }
+        if (isCameraEnabled) {
+            startCamera()
+        }
     }
 
     override fun capturePhoto() {
