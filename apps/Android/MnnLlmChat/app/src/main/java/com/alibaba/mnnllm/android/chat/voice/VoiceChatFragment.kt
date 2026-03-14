@@ -22,6 +22,18 @@ import com.alibaba.mnnllm.android.chat.ChatPresenter
 import com.alibaba.mnnllm.android.databinding.FragmentVoiceChatBinding
 import com.alibaba.mnnllm.android.utils.KeyboardUtils
 import androidx.core.graphics.toColorInt
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.core.content.FileProvider
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import android.net.Uri
 
 class VoiceChatFragment : Fragment(), VoiceChatView {
     
@@ -56,6 +68,13 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
     // Presenter
     private var presenter: VoiceChatPresenter? = null
 
+    // Camera
+    private var isCameraEnabled = false
+    private var imageCapture: ImageCapture? = null
+    private var cameraExecutor: ExecutorService? = null
+    private var capturedImageUri: Uri? = null
+    private var modelId: String = ""
+
 
     // Permissions
     private val requestPermissionLauncher =
@@ -74,8 +93,10 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
         super.onCreate(savedInstanceState)
         arguments?.let {
             modelName = it.getString(ARG_MODEL_NAME, "")
+            modelId = it.getString(ARG_MODEL_ID, "")
         }
-        Log.d(TAG, "onCreate: modelName=$modelName")
+        cameraExecutor = Executors.newSingleThreadExecutor()
+        Log.d(TAG, "onCreate: modelName=$modelName, modelId=$modelId")
     }
     
     override fun onCreateView(
@@ -138,7 +159,145 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
         binding.buttonEchoCancelMode.setOnClickListener {
             presenter?.toggleEchoCancelMode()
         }
+
+        binding.buttonCamera.setOnClickListener {
+            toggleCamera()
+        }
     }
+
+    private fun toggleCamera() {
+        if (!isCameraEnabled) {
+            checkAndRequestCameraPermission()
+        } else {
+            stopCamera()
+        }
+    }
+
+    private fun checkAndRequestCameraPermission() {
+        when {
+            ContextCompat.checkSelfPermission(
+                requireContext(),
+                Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED -> {
+                startCamera()
+            }
+            else -> {
+                requestCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            }
+        }
+    }
+
+    private val requestCameraPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+            if (isGranted) {
+                startCamera()
+            } else {
+                Toast.makeText(requireContext(), R.string.voice_chat_camera_permission_required, Toast.LENGTH_LONG).show()
+            }
+        }
+
+    private fun startCamera() {
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
+        cameraProviderFuture.addListener({
+            val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+
+            val preview = Preview.Builder().build().also {
+                it.setSurfaceProvider(binding.cameraPreview.surfaceProvider)
+            }
+
+            imageCapture = ImageCapture.Builder()
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                .build()
+
+            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+            try {
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(
+                    viewLifecycleOwner, cameraSelector, preview, imageCapture
+                )
+                isCameraEnabled = true
+                binding.cameraPreview.visibility = View.VISIBLE
+                
+                // Resolve colorSurface for consistent background
+                val typedValue = android.util.TypedValue()
+                requireContext().theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, typedValue, true)
+                val colorSurface = typedValue.data
+                
+                binding.root.setBackgroundColor(colorSurface)
+                binding.appBar.setBackgroundColor(android.graphics.Color.parseColor("#44000000"))
+                binding.toolbar.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                binding.rvVoiceTranscript.setBackgroundColor(android.graphics.Color.parseColor("#33000000"))
+                binding.buttonCamera.setImageResource(R.drawable.ic_camera_on)
+                Toast.makeText(requireContext(), R.string.voice_chat_camera_on, Toast.LENGTH_SHORT).show()
+            } catch (exc: Exception) {
+                Log.e(TAG, "Use case binding failed", exc)
+            }
+        }, ContextCompat.getMainExecutor(requireContext()))
+    }
+
+    private fun stopCamera() {
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
+        cameraProviderFuture.addListener({
+            val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+            cameraProvider.unbindAll()
+            isCameraEnabled = false
+            imageCapture = null
+            binding.cameraPreview.visibility = View.GONE
+            
+            // Restore original background using theme attribute
+            val typedValue = android.util.TypedValue()
+            val theme = requireContext().theme
+            theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, typedValue, true)
+            val colorSurface = typedValue.data
+            
+            binding.root.setBackgroundColor(colorSurface)
+            binding.appBar.setBackgroundColor(colorSurface)
+            binding.toolbar.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            binding.rvVoiceTranscript.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            binding.buttonCamera.setImageResource(R.drawable.ic_camera_off)
+            Toast.makeText(requireContext(), R.string.voice_chat_camera_off, Toast.LENGTH_SHORT).show()
+        }, ContextCompat.getMainExecutor(requireContext()))
+    }
+
+    override fun capturePhoto() {
+        if (!isCameraEnabled) return
+        val imageCapture = imageCapture ?: return
+
+        val outputDir = File(requireContext().cacheDir, "shared_images")
+        if (!outputDir.exists()) {
+            outputDir.mkdirs()
+        }
+        val photoFile = File(
+            outputDir,
+            SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US).format(System.currentTimeMillis()) + ".jpg"
+        )
+
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
+
+        imageCapture.takePicture(
+            outputOptions,
+            ContextCompat.getMainExecutor(requireContext()),
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onError(exc: ImageCaptureException) {
+                    Log.e(TAG, "Photo capture failed: ${exc.message}", exc)
+                }
+
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    capturedImageUri = Uri.fromFile(photoFile)
+                    Log.d(TAG, "Photo capture succeeded: $capturedImageUri")
+                }
+            }
+        )
+    }
+
+    override fun getCapturedImageUri(): Uri? = capturedImageUri
+
+    override fun clearCapturedImageUri() {
+        capturedImageUri = null
+    }
+
+    override fun isCameraEnabled(): Boolean = isCameraEnabled
     
     // Helper to create the styled text for mic mode display
     // Highlights the selected mode and dims/strikethroughs the unselected one
@@ -317,12 +476,22 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
         // Make it clickable when showing "Stop"
         val stopText = getString(R.string.voice_chat_stop)
         binding.tvVoiceChatStatus.isClickable = statusText == stopText
+
+        // Vision support check
+        if (com.alibaba.mnnllm.android.model.ModelTypeUtils.isVisualModel(modelId)) {
+            binding.buttonCamera.visibility = View.VISIBLE
+            binding.spaceCamera.visibility = View.VISIBLE
+        } else {
+            binding.buttonCamera.visibility = View.GONE
+            binding.spaceCamera.visibility = View.GONE
+        }
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         Log.d(TAG, "onDestroyView")
         presenter?.stop()
+        cameraExecutor?.shutdown()
         _binding = null
     }
 
@@ -339,6 +508,14 @@ class VoiceChatFragment : Fragment(), VoiceChatView {
             voiceModelMarketBottomSheet.setOnModelChangedCallback { voiceModelType, modelId ->
                 Log.d(TAG, "Voice model changed: $voiceModelType, modelId: $modelId")
                 
+                // Update local modelId to reflect current session's model
+                if (voiceModelType == VoiceModelMarketBottomSheet.VoiceModelType.TTS) {
+                    // Usually TTS model change doesn't affect vision, but we update context if needed
+                } else if (voiceModelType == VoiceModelMarketBottomSheet.VoiceModelType.ASR) {
+                     this.modelId = modelId // Update fragment's modelId
+                     updateViewVisibility()
+                }
+
                 // Recreate voice services when model changes
                 presenter?.recreateVoiceServices()
                 
