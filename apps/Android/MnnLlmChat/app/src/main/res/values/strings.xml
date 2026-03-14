@@ -674,4 +674,7 @@
     <string name="save_image">Save Image</string>
     <string name="image_saved_to_gallery">Image saved to gallery</string>
     <string name="failed_to_save_image">Failed to save image</string>
+    <string name="voice_chat_camera_on">开启摄像头</string>
+    <string name="voice_chat_camera_off">关闭摄像头</string>
+    <string name="voice_chat_camera_permission_required">需要相机权限才能使用此功能</string>
 </resources>
