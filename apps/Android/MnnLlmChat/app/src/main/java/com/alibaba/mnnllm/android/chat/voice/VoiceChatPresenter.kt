@@ -193,7 +193,8 @@ class VoiceChatPresenter(
                     view.addTranscript(Transcript(isUser = true, text = task.text))
                     view.updateStatus(VoiceChatState.PROCESSING)
                 }
-                stopRecord()
+                // Keep ASR recording active to support speech interruption
+                // stopRecord() 
                 val capturedImageUri = view.getCapturedImageUri()
                 if (capturedImageUri != null) {
                     Log.i(TAG, "Sending message with captured image: $capturedImageUri")
@@ -336,9 +337,16 @@ class VoiceChatPresenter(
                 }
 
                 asrService?.onSpeechDetected = {
-                    if (view.isCameraEnabled() && !isSpeaking && !isProcessingLlm) {
-                        Log.d(TAG, "Speech detected, capturing photo...")
-                        view.capturePhoto()
+                    lifecycleScope.launch(Dispatchers.Main) {
+                        if (!isStopped && (isSpeaking || isProcessingLlm)) {
+                            Log.i(TAG, "Speech detected during AI output, interrupting...")
+                            stopGeneration()
+                        }
+                        
+                        if (!isStopped && view.isCameraEnabled() && !isSpeaking && !isProcessingLlm) {
+                            Log.d(TAG, "Speech detected, capturing photo...")
+                            view.capturePhoto()
+                        }
                     }
                 }
                 
@@ -405,8 +413,8 @@ class VoiceChatPresenter(
                 // Get the greeting message from resources (Android will auto-select language)
                 val greetingMessage = activity.getString(com.alibaba.mnnllm.android.R.string.voice_chat_ready_greeting)
                 
-                // Temporarily stop recording while speaking greeting
-                stopRecord()
+                // Keep recording active to allow interruption during greeting
+                // stopRecord()
                 
                 // Set status to greeting
                 currentStatus = VoiceChatPresenterState.PLAYING
