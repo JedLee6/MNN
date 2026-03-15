@@ -2258,20 +2258,6 @@
     ],
     "tts_models": [
         {
-            "modelName": "bert-vits2-MNN",
-            "tags": [
-                "TTS", "English and Chinese"
-            ],
-            "categories": [],
-            "size_gb": 1.5,
-            "sources": {
-                "ModelScope": "MNN/bert-vits2-MNN",
-                "Modelers": "MNN/bert-vits2-MNN",
-                "HuggingFace": "taobao-mnn/bert-vits2-MNN"
-            },
-            "file_size": 1392023806
-        },
-        {
             "modelName": "supertonic-tts-mnn",
             "tags": [
                 "TTS", "English"
@@ -2284,6 +2270,20 @@
                 "HuggingFace": "taobao-mnn/supertonic-tts-mnn"
             },
             "file_size": 464403825
+        },
+        {
+            "modelName": "bert-vits2-MNN",
+            "tags": [
+                "TTS", "English and Chinese"
+            ],
+            "categories": [],
+            "size_gb": 1.5,
+            "sources": {
+                "ModelScope": "MNN/bert-vits2-MNN",
+                "Modelers": "MNN/bert-vits2-MNN",
+                "HuggingFace": "taobao-mnn/bert-vits2-MNN"
+            },
+            "file_size": 1392023806
         }
     ],
     "asr_models": [
