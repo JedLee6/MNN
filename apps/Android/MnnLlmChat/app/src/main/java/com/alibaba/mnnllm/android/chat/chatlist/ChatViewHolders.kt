@@ -32,7 +32,7 @@ import com.alibaba.mnnllm.android.utils.UiUtils
 import com.alibaba.mnnllm.android.widgets.FullScreenImageViewer
 import com.alibaba.mnnllm.android.widgets.PopupWindowHelper
 import io.noties.markwon.Markwon
-import io.noties.markwon.ext.latex.JLatexMathPlugin
+import io.noties.markwon.ext.latex.MnnJLatexMathPlugin
 import io.noties.markwon.ext.latex.JLatexMathTheme
 import io.noties.markwon.ext.tables.TablePlugin
 import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin
@@ -203,7 +203,7 @@ object ChatViewHolders {
                 builder.addInlineProcessor(LatexInlineProcessor())
             })
             .usePlugin(TablePlugin.create(itemView.context))
-            .usePlugin(JLatexMathPlugin.create(viewText.textSize, viewText.textSize) { builder ->
+            .usePlugin(MnnJLatexMathPlugin.create(viewText.textSize, viewText.textSize) { builder ->
                 builder.inlinesEnabled(true)
             })
             .build()
