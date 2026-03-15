@@ -125,18 +125,22 @@ object ImageUtils {
     }
 
     /**
-     * Resizes and compresses an image file.
-     * @param file The image file to compress.
-     * @param maxDimension The maximum width or height of the compressed image.
-     * @param quality The JPEG compression quality (0-100).
+     * Resizes and compresses an image file to reduce its size and memory footprint.
+     * Performs rotation based on EXIF metadata.
+     *
+     * @param file The image file to compress. This file will be overwritten with the compressed version.
+     * @param maxDimension The maximum allowed width or height for the output image. Defaults to 1024px.
+     * @param quality The JPEG compression quality level (0 to 100). Default is 80.
      */
     fun compressImageFile(file: java.io.File, maxDimension: Int = 1024, quality: Int = 80) {
         try {
+            // Step 1: Decode only dimensions to calculate scaling factor without loading full bitmap into memory
             val options = android.graphics.BitmapFactory.Options().apply {
                 inJustDecodeBounds = true
             }
             android.graphics.BitmapFactory.decodeFile(file.absolutePath, options)
 
+            // Calculate inSampleSize: a power-of-two scaling done during decoding
             var inSampleSize = 1
             if (options.outHeight > maxDimension || options.outWidth > maxDimension) {
                 val halfHeight = options.outHeight / 2
@@ -146,11 +150,12 @@ object ImageUtils {
                 }
             }
 
+            // Step 2: Decode the bitmap with calculated scale
             options.inJustDecodeBounds = false
             options.inSampleSize = inSampleSize
             val bitmap = android.graphics.BitmapFactory.decodeFile(file.absolutePath, options) ?: return
 
-            // Handle orientation
+            // Step 3: Handle orientation using EXIF data
             val exif = try {
                 android.media.ExifInterface(file.absolutePath)
             } catch (e: Exception) {
@@ -162,20 +167,18 @@ object ImageUtils {
             ) ?: android.media.ExifInterface.ORIENTATION_UNDEFINED
 
             val matrix = android.graphics.Matrix()
+            // Map EXIF orientation to degrees of rotation
             when (orientation) {
                 android.media.ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
                 android.media.ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
                 android.media.ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
             }
 
-            val rotatedBitmap = if (!matrix.isIdentity) {
-                android.graphics.Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-            } else {
-                bitmap
-            }
-
-            val finalBitmap = if (rotatedBitmap.width > maxDimension || rotatedBitmap.height > maxDimension) {
-                val ratio = rotatedBitmap.width.toFloat() / rotatedBitmap.height.toFloat()
+            // Step 4: Optimization - Combine precise scaling and rotation into a single operation
+            // This avoids creating intermediate bitmaps for rotation then scaling separately.
+            val finalBitmap = if (bitmap.width > maxDimension || bitmap.height > maxDimension || !matrix.isIdentity) {
+                // Calculate precise scale to fit within maxDimension
+                val ratio = bitmap.width.toFloat() / bitmap.height.toFloat()
                 val targetWidth: Int
                 val targetHeight: Int
                 if (ratio > 1) {
@@ -185,26 +188,31 @@ object ImageUtils {
                     targetHeight = maxDimension
                     targetWidth = (maxDimension * ratio).toInt()
                 }
-                android.graphics.Bitmap.createScaledBitmap(rotatedBitmap, targetWidth, targetHeight, true)
+
+                // Add scaling to the transformation matrix
+                val scaleWidth = targetWidth.toFloat() / bitmap.width
+                val scaleHeight = targetHeight.toFloat() / bitmap.height
+                matrix.postScale(scaleWidth, scaleHeight)
+
+                // Create final bitmap with combined transformation
+                android.graphics.Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
             } else {
-                rotatedBitmap
+                bitmap
             }
 
+            // Step 5: Save the compressed bitmap back to the original file
             java.io.FileOutputStream(file).use { out ->
                 finalBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, out)
             }
-            
-            if (finalBitmap != rotatedBitmap && finalBitmap != bitmap) {
+
+            // Step 6: Memory Cleanup
+            if (finalBitmap != bitmap) {
                 finalBitmap.recycle()
             }
-            if (rotatedBitmap != bitmap) {
-                rotatedBitmap.recycle()
-            }
             bitmap.recycle()
-            
-            Log.d(TAG, "Image compressed: ${file.length() / 1024} KB")
+            Log.d(TAG, "Image successfully compressed: ${file.length() / 1024} KB")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to compress image", e)
+            Log.e(TAG, "Failed to compress image due to exception", e)
         }
     }
 }

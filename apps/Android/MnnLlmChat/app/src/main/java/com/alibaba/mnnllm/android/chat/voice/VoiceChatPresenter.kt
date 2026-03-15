@@ -200,25 +200,33 @@ class VoiceChatPresenter(
                 // We don't call `stopRecord()` here to keep ASR active during LLM generation to support "speech interruption" (full-duplex). If the user starts speaking, onSpeechDetected will trigger and stop current generation.
                 // stopRecord()
 
+                // Check if there's a captured image from the vision mode
                 val capturedImageUri = view.getCapturedImageUri()
                 if (capturedImageUri != null) {
+                    // Vision Mode: Send a multi-modal message (text + captured image)
                     Log.i(TAG, "Sending message with captured image: $capturedImageUri")
+                    
+                    // Construct a ChatDataItem compatible with ChatPresenter's message sending
                     val userData = com.alibaba.mnnllm.android.chat.model.ChatDataItem(com.alibaba.mnnllm.android.chat.chatlist.ChatViewHolders.USER)
                     userData.text = task.text
                     userData.imageUris = listOf(capturedImageUri)
                     userData.time = chatPresenter.dateFormat.format(java.util.Date())
 
-                    // Reset generation state before sending multi-modal message
+                    // Reset local generation state to prepare for the new multi-modal response
                     responseBuilder.clear()
                     ttsSegmentBuffer.clear()
                     isFirstChunk = true
                     isGenerationFinished = false
 
+                    // Send the message via ChatPresenter in a background IO thread
                     lifecycleScope.launch(Dispatchers.IO) {
                         chatPresenter.sendMessage(userData)
                     }
+                    
+                    // Clear the captured image URI to prevent re-sending it in the next turn
                     view.clearCapturedImageUri()
                 } else {
+                    // Standard Mode: Send a text-only generation request to the LLM
                     Log.d(TAG, "No image captured, sending text-only message: ${task.text}")
                     llmGenerate(task.text)
                 }
