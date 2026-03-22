@@ -1,4 +1,4 @@
-# YouTube Video Script — MNN Chat: ChatGPT-Like Live Video Chat, Running Entirely On Your Phone
+# YouTube Video Script — MNN Chat: ChatGPT-Like Real-Time Voice & Video Chat, Running Entirely On Your Phone
 
 > **Estimated Duration**: 8–10 minutes  
 > **Tone**: Enthusiastic, technical but accessible, developer-to-audience  
@@ -6,37 +6,53 @@
 
 ---
 
-## PART 1 — Hook & Introduction (0:00 – 1:00)
+## PART 1 — Hook & Introduction (0:00 – 1:30)
 
 **[TALKING HEAD — energetic opening]**
 
-Hey everyone! What if I told you that you could have a **ChatGPT-like live video chat** — voice conversations, real-time camera vision, speech interruption — all running **completely on your phone**, with **zero cloud, zero API calls, zero internet required**?
+Hey everyone, I'm Jad, and welcome back to the channel.
 
-That's exactly what I built. And today, I'm going to show you how it works.
+So, we've all seen the massive hype around ChatGPT's Advanced Voice Mode — the way it sees the world through your camera, talks to you naturally, and actually stops talking when you interrupt it. It's amazing.
+
+But here's the thing — it needs the cloud. It needs the internet. And it definitely needs a subscription.
+
+**What if you could have all of that — running completely offline, on your phone?**
 
 **[Show phone screen briefly]**
 
-This is **MNN Chat** — an open-source Android app powered by Alibaba's MNN inference framework. It runs large language models, speech recognition, and text-to-speech **entirely on-device**. And the feature I'm most excited about? **Live voice and video chat mode** — just like ChatGPT's Advanced Voice, but running locally on a phone.
+That's exactly what I built. This is **MNN Chat** — an open-source Android app that delivers a **1:1 real-time voice chat experience matching ChatGPT**, powered by the MNN inference engine, running **entirely locally on your phone** — no cloud, no internet required.
+
+Let me tell you what this app can do:
+
+- ✅ **Multiple multimodal models available** — including Qwen 2.5 from 0.6B to 32B, with **over 40 models** to choose from: GPT, DeepSeek, LLaMA, Gemma, and more.
+- ✅ **Real-time voice conversation** with **acoustic echo cancellation** — interrupt the AI anytime, mid-speech.
+- ✅ **Live video chat** — let the AI see you and the world around you through your camera.
+- ✅ **Fully offline** — 100% control over your privacy.
+- ✅ **Forever free and open-source** — no payments, no usage limits, no time restrictions, no ads, no catches.
+
+A pure, smooth, and secure **on-device AI companion**.
 
 Let me show you.
 
 ---
 
-## PART 2 — App Overview & Demo (1:00 – 4:00)
-
-### 2.1 — Starting the App
+## PART 2 — Live Demo (1:30 – 5:00)
 
 **[SCREEN RECORDING — phone screen]**
 
-So here's the app. When you open it, you see the model selection screen. MNN Chat supports a variety of models — Qwen, DeepSeek, LLaMA, and more. I've got a model loaded here, and you can see the text chat interface — pretty standard.
+> **Note to viewer:** Throughout this entire demo, there is **no editing and no speed-up** — everything you see is happening in **real time**.
 
-But the magic happens when you tap **this microphone button** up here to enter **Voice Chat Mode**.
+### 2.1 — Starting the App
 
-### 2.2 — Voice Chat Demo
+So here's the app. When you open it, you see the model selection screen. MNN Chat supports a huge variety of models — Qwen, DeepSeek, LLaMA, Gemma, and more. I've got a model loaded here, and you can see the text chat interface.
 
-**[SCREEN RECORDING — Voice Chat mode]**
+But the magic happens when you tap **this microphone button** to enter **Voice Chat Mode**.
 
-And just like that, we're in voice chat. You can see the app is initializing — it's loading the ASR model for speech recognition and the TTS model for text-to-speech. Both are running locally.
+### 2.2 — Voice Chat Demo (Without Vision)
+
+**[SCREEN RECORDING — Voice Chat mode, no camera]**
+
+And just like that, we're in voice chat. The app is initializing — loading the ASR model for speech recognition and the TTS model for text-to-speech. Both are running locally on the device.
 
 Now it's ready. Listen —
 
@@ -46,59 +62,69 @@ That greeting was generated completely on-device using the TTS engine. Now let m
 
 *[Speak: "Can you explain what a neural network is in simple terms?"]*
 
-Watch the status — it goes from **Listening**, to **Processing**, to **Thinking** — you can actually see when the model is in its thinking phase — and then it starts **Speaking** the response.
+Watch the status — it goes from **Listening**, to **Processing**, to **Thinking**, and then it starts **Speaking** the response.
 
-*[Let the AI respond for a few seconds]*
+*[Let the AI respond]*
 
-And here's the cool part —
+Notice how **fast** the response comes back. Without the vision model, the response speed is noticeably quicker — because the LLM doesn't need to process any image data. For pure voice conversations, this gives you a snappy, low-latency experience.
 
 ### 2.3 — Voice Interruption Demo
 
 **[SCREEN RECORDING — interrupt the AI mid-speech]**
 
-I can **interrupt it mid-sentence** just by speaking!
+Now here's the cool part — I can **interrupt the AI mid-sentence** just by speaking.
 
 *[Speak while AI is talking: "Actually, can you give me a shorter answer?"]*
 
-See that? The AI immediately stopped, and it's now processing my new request. This is **full-duplex voice interaction** — the microphone stays active even while the AI is speaking. The moment it detects my voice, it cancels the current response and starts fresh. Just like a real conversation.
+See that? The AI **immediately stopped**, and it's now processing my new request. This is **full-duplex voice interaction** — the microphone stays active even while the AI is speaking. The moment it detects my voice, it cancels the current response and starts fresh.
 
-### 2.4 — Live Video Vision Demo
+Just like a real conversation.
+
+The app uses Android's hardware **Acoustic Echo Canceler** so it doesn't hear its own voice through the mic. This is critical — without it, the AI's TTS output would be picked up by the microphone and cause a feedback loop.
+
+### 2.4 — Live Video Vision Demo (Front & Back Camera)
 
 **[SCREEN RECORDING — enable camera]**
 
-Now, here's where it gets really interesting. See this camera button? Let me tap it.
+Now, here's where it gets really exciting. See this camera button? Let me tap it.
 
-*[Tap camera button — camera preview appears]*
+*[Tap camera button — camera preview appears with back camera]*
 
-Now the app is showing a live camera preview. I'm going to point it at something and ask a question.
+The app is now showing a live camera preview. Let me point it at something and ask a question.
 
 *[Point camera at an object — e.g., a book, a plant, a keyboard]*
 
 *[Speak: "What do you see in front of me?"]*
 
-The app automatically **captures a photo** the moment I start speaking, compresses it, and sends it along with my voice transcript to the vision-capable language model. The AI can now "see" what I'm looking at and describe it.
+The app automatically **captures a photo** the moment I start speaking, compresses it, and sends it along with my voice transcript to the vision-capable language model. The AI can now **"see"** what I'm looking at and describe it.
 
 *[Let the AI respond]*
 
-This is essentially the same experience as ChatGPT's live video mode — but it's all happening **on my phone, offline**.
+This is essentially the same experience as ChatGPT's live video mode — but it's all happening **on my phone, completely offline**.
 
-I can also switch between front and back cameras with this button here.
+Now let me switch to the **front camera** —
 
 *[Tap camera switch button]*
 
+*[Speak: "What do I look like right now?"]*
+
+*[Let the AI respond]*
+
+You can freely switch between front and back cameras during the conversation. The vision model handles both seamlessly.
+
 ---
 
-## PART 3 — How It Works (4:00 – 7:00)
+## PART 3 — How It Works (5:00 – 7:30)
 
 **[TALKING HEAD + architecture diagram overlay]**
 
-Alright, let's talk about how this actually works under the hood. There are **four key components** in the pipeline:
+Alright, let's talk about how this actually works under the hood. There are **four key components** in the pipeline.
 
 ### 3.1 — The Pipeline
 
 **[Show data flow diagram]**
 
-The flow is simple:
+The flow is straightforward:
 
 1. **Microphone** captures your voice as raw PCM audio at 16kHz.
 2. **ASR (Automatic Speech Recognition)** — powered by Sherpa-MNN — converts that audio into text in real time, right on the device.
@@ -112,7 +138,7 @@ All four of these — ASR, LLM, TTS, and audio playback — run **entirely on-de
 
 **[Show interruption sequence diagram]**
 
-Now, the voice interruption feature is really interesting from an engineering perspective.
+The voice interruption feature is really interesting from an engineering perspective.
 
 The key insight is: **we never stop recording**. Even while the AI is speaking, the microphone and ASR engine stay active. The ASR has a callback called `onSpeechDetected` that fires the instant it detects any speech in the audio stream.
 
@@ -124,7 +150,7 @@ When that fires during AI output, the app immediately:
 
 All within milliseconds. That's what gives it that natural, conversational feel.
 
-We also handle echo cancellation — because the AI's own voice could be picked up by the mic! We use Android's hardware **Acoustic Echo Canceler** to filter that out. And as a fallback, there's a software **Auto-Mute mode** that silences the mic when the AI speaks.
+For echo cancellation, we use a dual approach: Android's hardware **Acoustic Echo Canceler** as the primary mechanism, with a software **Auto-Mute mode** as fallback that silences the mic when the AI speaks.
 
 ### 3.3 — How Vision Works
 
@@ -142,13 +168,13 @@ This means there are no race conditions, no threading issues. Everything happens
 
 ---
 
-## PART 4 — Technology Stack (7:00 – 8:00)
+## PART 4 — Technology Stack (7:30 – 8:15)
 
 **[TALKING HEAD with text overlay of tech stack]**
 
 Let me quickly go over the tech stack:
 
-- **MNN** — Alibaba's Mobile Neural Network framework. Handles all the model inference — LLM, TTS. It's incredibly optimized for mobile ARM chips.
+- **MNN** — Alibaba's Mobile Neural Network framework. Handles all the model inference — LLM, TTS. Incredibly optimized for mobile ARM chips.
 - **Sherpa-MNN** — A streaming ASR engine that provides real-time speech recognition with endpoint detection.
 - **CameraX** — Android Jetpack's camera library for the vision feature.
 - **Kotlin Coroutines** — For managing all the async operations cleanly.
@@ -158,33 +184,41 @@ And the best part? **It's all open source.** You can check out the repository �
 
 ---
 
-## PART 5 — Future Plans (8:00 – 9:00)
+## PART 5 — Future Plans (8:15 – 9:15)
 
 **[TALKING HEAD — forward-looking, excited]**
 
-So what's next? I have several things planned:
+So what's next? Let me share the roadmap.
 
-1. **Optimized TTS Queue** — Right now, TTS generation happens sequentially. I'm working on a queue system where audio segments can be pre-generated while the current one is still playing, making responses feel even more seamless.
+Right now, the TTS and ASR engines **only support English**. That's the biggest limitation. So my number one priority is **multi-language support**.
 
-2. **Streaming TTS** — Instead of generating the entire sentence and then playing, I want to stream audio chunks as they're generated, reducing the first-audio latency to near-zero.
+Here's the plan: I'm going to combine the **Sherpa-ONNX** project with the MNN Chat project to dramatically improve ASR accuracy and add support for many more languages.
 
-3. **Multi-turn Vision** — Currently, each turn captures a single photo. I'd like to support continuous video understanding, where the AI maintains awareness of the visual context across a conversation.
+Specifically:
 
-4. **More Models** — Support for more on-device models, including smaller, faster ones optimized specifically for voice interactions.
+1. **Multi-Language ASR with Whisper** — I plan to integrate OpenAI's **Whisper Large V3** model, which supports **over 90 languages**. This will give us high-accuracy, multi-language speech recognition — all running on-device.
+
+2. **Multi-Language TTS with Piper** — For text-to-speech, I'm looking at **Piper TTS**, which supports **over 40 languages**. Imagine having a natural-sounding AI voice in Mandarin, Japanese, Spanish, French, German — all offline on your phone.
+
+3. **Streaming TTS** — Instead of generating the entire sentence and then playing it, I want to stream audio chunks as they're generated, reducing the first-audio latency even further.
+
+4. **Multi-turn Vision** — Currently, each turn captures a single photo. I'd like to support continuous video understanding, where the AI maintains visual awareness across the entire conversation.
 
 5. **iOS Support** — The MNN framework already supports iOS, so bringing this voice chat experience to iPhone is definitely on the roadmap.
 
+The goal is to make MNN Chat a truly **universal, multi-language, on-device AI assistant** — free and open-source for everyone.
+
 ---
 
-## PART 6 — Closing (9:00 – 9:30)
+## PART 6 — Closing (9:15 – 9:45)
 
 **[TALKING HEAD — warm closing]**
 
 That's it for today! I hope this gives you a good idea of what's possible with **on-device AI** right now. We're at a point where you can have a full ChatGPT-like voice and video conversation with an AI — completely offline, completely private, running on hardware you already own.
 
-If you found this interesting, please give it a **like**, **subscribe**, and drop a **comment** below. I'd love to hear what features you'd want to see added.
+If you found this interesting, please give it a **like**, **subscribe**, and drop a **comment** below. I'd love to hear what features you'd want to see — especially which **languages** you'd like supported first.
 
-The full source code is available on GitHub — link in the description. Feel free to star the repo, open issues, or contribute.
+The full source code is available on **GitHub** — link in the description. Feel free to **star** the repo, open issues, or contribute.
 
 Thanks for watching, and I'll see you in the next one!
 
@@ -194,9 +228,12 @@ Thanks for watching, and I'll see you in the next one!
 
 | Timestamp | Visual |
 | :--- | :--- |
-| 0:00 – 0:10 | Quick montage: phone running app, voice waves, camera POV |
-| 1:00 – 4:00 | Full-screen phone recording (portrait or landscape crop) |
-| 4:00 – 7:00 | Architecture diagrams (from technical doc) overlaid on talking head |
-| 7:00 – 8:00 | Text overlay bullet points of tech stack |
-| 8:00 – 9:00 | Animated list of future features |
-| 9:00 – 9:30 | GitHub repo page, subscribe animation |
+| 0:00 – 0:15 | Quick montage: phone running app, voice waves, camera POV, "100% OFFLINE" text flash |
+| 0:15 – 1:30 | Talking head with feature bullet points appearing as animated text overlays |
+| 1:30 – 2:30 | Full-screen phone recording: voice chat without camera (highlight speed) |
+| 2:30 – 3:30 | Full-screen phone recording: voice interruption demo (highlight "AI stops instantly") |
+| 3:30 – 5:00 | Full-screen phone recording: video chat with camera switch (back → front) |
+| 5:00 – 7:30 | Architecture diagrams (from technical doc) overlaid on talking head |
+| 7:30 – 8:15 | Text overlay bullet points of tech stack |
+| 8:15 – 9:15 | Animated roadmap: language flags 🌍, Whisper logo, Piper logo, iOS icon |
+| 9:15 – 9:45 | GitHub repo page, subscribe animation, language poll overlay |
